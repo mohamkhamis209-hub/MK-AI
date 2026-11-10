@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MK AI - المساعد الذكي الخارق</title>
+
+  <!-- PWA Manifest & Meta Tags -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#212121">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MK AI">
+  <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Markdown Parser & Code Syntax Highlighter -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+  <!-- PDF.js for Reading PDFs Client-Side -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+
+  <!-- In-Browser SQLite WebAssembly (sql.js) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/sql-wasm.js"></script>
+
+  <!-- Application Styles -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="dark-theme">
+
+  <!-- ChatGPT App Layout -->
+  <div class="chatgpt-layout">
+
+    <!-- Mobile Header Overlay Backdrop -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <!-- 1. SIDEBAR (القائمة الجانبية) -->
+    <aside class="sidebar" id="sidebar">
+      
+      <!-- Top Action: New Chat & Search -->
+      <div class="sidebar-top">
+        <div class="brand-row">
+          <div class="brand-logo">MK</div>
+          <span class="brand-name">MK AI</span>
+        </div>
+        
+        <button class="btn-new-chat" id="btnNewChat">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>محادثة جديدة</span>
+        </button>
+
+        <div class="search-chats-wrapper">
+          <input type="text" id="inputSearchChats" class="search-chats-input" placeholder="بحث في سجل المحادثات...">
+        </div>
+      </div>
+
+      <!-- Conversations History List Grouped by Date (Today, Yesterday, Previous) -->
+      <div class="sidebar-history" id="sidebarHistory">
+        <!-- Rendered dynamically from SQLite -->
+      </div>
+
+      <!-- Bottom System Actions -->
+      <div class="sidebar-bottom">
+        <!-- PWA Install Button -->
+        <button class="sidebar-action-btn" id="btnInstallPwa" style="display: none;">
+          <span class="icon">📲</span>
+          <span>تثبيت التطبيق على الهاتف</span>
+        </button>
+
+        <!-- Backup & Restore -->
+        <button class="sidebar-action-btn" id="btnOpenBackupModal">
+          <span class="icon">💾</span>
+          <span>النسخ الاحتياطي والنقل</span>
+        </button>
+
+        <!-- Settings -->
+        <button class="sidebar-action-btn" id="btnOpenSettingsModal">
+          <span class="icon">⚙️</span>
+          <span>إعدادات الذكاء والنماذج</span>
+        </button>
+
+        <!-- Theme Toggle & Profile Info -->
+        <div class="sidebar-user-row">
+          <div class="user-badge-info">
+            <div class="user-avatar">MK</div>
+            <div class="user-details">
+              <span class="user-name">MK AI Pro</span>
+              <span class="user-status" id="dbStatusBadge">قاعدة SQLite: نشطة</span>
+            </div>
+          </div>
+          <button class="btn-icon-theme" id="btnThemeToggle" title="تبديل الوضع الليلي / النهاري">
+            <span id="themeIcon">☀️</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 2. MAIN CHAT AREA (مساحة المحادثة المركزية) -->
+    <main class="main-chat">
+      
+      <!-- Top Navigation Header -->
+      <header class="chat-navbar">
+        <div class="nav-left">
+          <button class="btn-nav-icon" id="btnToggleSidebar" title="القائمة الجانبية">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+          
+          <!-- Model Switcher Dropdown (ChatGPT style) -->
+          <div class="model-dropdown-container">
+            <button class="model-dropdown-trigger" id="modelDropdownTrigger">
+              <span id="activeModelLabel">MK 4o (الذكي والسريع)</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div class="model-dropdown-menu" id="modelDropdownMenu" style="display: none;">
+              <div class="model-menu-item active" data-model="mk-4o">
+                <div class="item-title">✨ MK 4o</div>
+                <div class="item-desc">النموذج الافتراضي فائق السرعة والذكاء للمحادثة والمهام اليومية</div>
+              </div>
+              <div class="model-menu-item" data-model="mk-o1">
+                <div class="item-title">🧠 MK o1 (تفكير عميق)</div>
+                <div class="item-desc">استدلال رياضي ومنطقي عميق مع إظهار خطوات التفكير قبل الإجابة</div>
+              </div>
+              <div class="model-menu-item" data-model="mk-coder">
+                <div class="item-title">💻 MK Coder</div>
+                <div class="item-desc">متخصص في كتابة وهندسة الأكواد وحل المشكلات البرمجية المعقدة</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="nav-right">
+          <!-- Web Search Quick Toggle -->
+          <button class="web-search-toggle" id="btnWebSearchToggle" title="تفعيل البحث في الويب فقط عند الحاجة لأخبار أو أسعار حية">
+            <span class="icon">🌐</span>
+            <span class="lbl">البحث في الويب</span>
+          </button>
+
+          <!-- Export Current Chat -->
+          <button class="btn-nav-icon" id="btnExportCurrentChat" title="تحميل وتصدير هذه المحادثة">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Chat Messages Container -->
+      <div class="messages-viewport" id="messagesViewport">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Floating Scroll to Bottom Button -->
+      <button class="btn-scroll-bottom" id="btnScrollBottom" style="display: none;" title="الانتقال لآخر الرسائل">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <polyline points="19 12 12 19 5 12"></polyline>
+        </svg>
+      </button>
+
+      <!-- ChatGPT-Style Composer Bar (شريط الإدخال السفلي) -->
+      <div class="composer-wrapper">
+        
+        <!-- Attached Files & Images Preview Bar -->
+        <div class="attachments-preview-bar" id="attachmentsPreviewBar" style="display: none;"></div>
+
+        <!-- Composer Form -->
+        <form class="composer-box" id="composerForm">
+          
+          <!-- Attachment Button -->
+          <label class="btn-composer-icon" title="إرفاق ملفات أو صور (PDF, TXT, Word, Images)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+            </svg>
+            <input type="file" id="fileUploader" multiple accept=".pdf,.txt,.md,.csv,.json,.js,.py,.html,.css,image/*" style="display: none;">
+          </label>
+
+          <!-- Voice Dictation Button (إدخال صوتي مباشر) -->
+          <button type="button" class="btn-composer-icon" id="btnVoiceDictation" title="إدخال صوتي بالتحدث">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+          </button>
+
+          <!-- Input Textarea -->
+          <textarea 
+            id="promptTextarea" 
+            class="composer-textarea" 
+            rows="1" 
+            placeholder="اسأل MK AI، اكتب كود، ناقش أفكار، أو اسحب ملفاتك هنا..." 
+            dir="auto"
+          ></textarea>
+
+          <!-- Send / Stop Button Toggle -->
+          <button type="submit" class="btn-composer-send" id="btnSendOrStop" title="إرسال (Enter)">
+            <svg id="iconSend" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="19" x2="12" y2="5"></line>
+              <polyline points="5 12 12 5 19 12"></polyline>
+            </svg>
+            <svg id="iconStop" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="display: none;">
+              <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+            </svg>
+          </button>
+        </form>
+
+        <div class="composer-disclaimer">
+          مساعدك الذكي MK AI يتحدث بطلاقة ويحفظ محادثاتك محلياً في قاعدة بيانات SQLite بالمتصفح.
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- ==================== MODALS ==================== -->
+
+  <!-- 1. Backup & Restore Modal -->
+  <div class="modal-overlay" id="backupModal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>النسخ الاحتياطي ونقل المحادثات (Backup & Restore)</h3>
+        <button class="btn-close-modal" id="btnCloseBackupModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          يمكنك أخذ نسخة احتياطية كاملة من جميع محادثاتك وملفاتك وتحميلها على هاتفك، أو رفع نسخة سابقة لنقلها من هاتف لآخر بكل سهولة.
+        </p>
+
+        <!-- Stats Box -->
+        <div class="stats-box" id="backupStatsBox">
+          <div class="stat-item">
+            <span class="stat-label">إجمالي المحادثات:</span>
+            <span class="stat-value" id="statsConversationsCount">0</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">المكان التخزيني:</span>
+            <span class="stat-value">قاعدة بيانات SQLite محلية</span>
+          </div>
+        </div>
+
+        <!-- Export Action -->
+        <div class="action-card">
+          <div class="action-info">
+            <strong>تحميل نسخة احتياطية كاملة (.mkbackup)</strong>
+            <small>احفظ ملف المحادثات والملفات على جهازك لنقله في أي وقت.</small>
+          </div>
+          <button class="btn-modal-action primary" id="btnDownloadBackup">تنزيل النسخة الاحتياطية</button>
+        </div>
+
+        <!-- Import Action -->
+        <div class="action-card">
+          <div class="action-info">
+            <strong>استعادة ونقل نسخة احتياطية</strong>
+            <small>اختر ملف النسخة الاحتياطية لاسترجاعها على هذا الجهاز فوراً.</small>
+          </div>
+          <label class="btn-modal-action secondary">
+            استيراد ملف النسخة
+            <input type="file" id="fileBackupInput" accept=".mkbackup,.json" style="display: none;">
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Settings Modal -->
+  <div class="modal-overlay" id="settingsModal" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>إعدادات النموذج والذكاء الاصطناعي</h3>
+        <button class="btn-close-modal" id="btnCloseSettingsModal">✕</button>
+      </div>
+      <div class="modal-body">
+        
+        <div class="setting-row">
+          <label class="setting-title">نموذج المحادثة الافتراضي:</label>
+          <select id="selectAiEngine" class="modal-select">
+            <option value="mk-4o" selected>MK 4o (ذكي، سريع، شامل للمحادثات)</option>
+            <option value="mk-o1">MK o1 (تفكير عميق واستدلال واستنتاج متقدم)</option>
+            <option value="mk-coder">MK Coder (متخصص في الأكواد والبرمجة)</option>
+            <option value="custom-api">Custom API Key (مفتاحك الخاص - Gemini أو Groq)</option>
+          </select>
+        </div>
+
+        <div class="setting-row" id="rowCustomApiKey" style="display: none;">
+          <label class="setting-title">مفتاح API الخاص بك (اختياري للأجهزة الضعيفة):</label>
+          <input type="password" id="inputCustomApiKey" class="modal-input" placeholder="أدخل مفتاح Gemini (AIza...) أو Groq (gsk_...)">
+          <small class="hint">يتم حفظ المفتاح محلياً فقط في قاعدة بيانات المتصفح ولا يتم إرساله لأي جهة أخرى.</small>
+        </div>
+
+        <div class="setting-row">
+          <label class="setting-title">البحث المباشر في الويب (Live Web Search):</label>
+          <label class="toggle-control">
+            <input type="checkbox" id="chkDefaultSearch">
+            <span class="toggle-slider"></span>
+            <span class="toggle-text">اتركه معطلاً للدردشة الطبيعية، وفعّله فقط عند الحاجة لأخبار أو أسعار حية.</span>
+          </label>
+        </div>
+
+        <hr class="divider">
+
+        <div class="setting-row">
+          <button class="btn-danger" id="btnClearAllData">مسح جميع المحادثات والبيانات المحلية</button>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn-modal-action primary" id="btnSaveSettings">حفظ الإعدادات</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="db.js"></script>
+  <script src="ai-engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
