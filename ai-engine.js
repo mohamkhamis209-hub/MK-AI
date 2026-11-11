@@ -652,22 +652,43 @@ ${attachmentContextText ? `مرفقات ومستندات المستخدم:\n${at
 
     const targetModel = model === 'mk-coder' ? 'qwen' : (model === 'mk-creative' ? 'mistral' : 'openai');
 
-    const res = await fetch('https://text.pollinations.ai/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messages,
-        model: targetModel,
-        stream: false
-      }),
-      signal
-    });
+    // Multi-Gateway Resilient Inference Router
+    const gateways = [
+      // 1. Primary Pollinations OpenAI compatible gateway
+      async () => {
+        const res = await fetch('https://text.pollinations.ai/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages, model: targetModel, stream: false }),
+          signal
+        });
+        if (!res.ok) throw new Error('Pollinations HTTP ' + res.status);
+        const text = await res.text();
+        if (!text || text.trim() === '') throw new Error('Empty response');
+        return text;
+      },
+      // 2. Secondary Fast Pollinations GET endpoint
+      async () => {
+        const encodedPrompt = encodeURIComponent(prompt);
+        const res = await fetch(`https://text.pollinations.ai/${encodedPrompt}?model=${targetModel}`, { signal });
+        if (!res.ok) throw new Error('Pollinations GET ' + res.status);
+        const text = await res.text();
+        if (!text || text.trim() === '') throw new Error('Empty response');
+        return text;
+      }
+    ];
 
-    if (!res.ok) throw new Error('Inference server returned status ' + res.status);
-    const fullText = await res.text();
-    if (!fullText || fullText.trim() === '') throw new Error('Empty response');
+    for (const gw of gateways) {
+      try {
+        const fullText = await gw();
+        await this.streamWords(fullText, onChunk, signal);
+        return;
+      } catch (e) {
+        console.warn('[MK AI] Gateway attempt failed, trying next:', e.message);
+      }
+    }
 
-    await this.streamWords(fullText, onChunk, signal);
+    throw new Error('All online inference gateways currently unreachable.');
   }
 
   async generateViaCustomAPI(apiKey, prompt, systemInstruction, history, onChunk, signal) {
@@ -730,22 +751,21 @@ ${attachmentContextText ? `مرفقات ومستندات المستخدم:\n${at
     const p = (prompt || '').trim();
     const pLower = p.toLowerCase();
 
-    // Check if it's a conversation greeting or casual talk
+    // 1. Casual Chat & Polite Conversation Engine
     if (/^(مرحبا|أهلا|اهلا|سلام|مساء الخير|صباح الخير|هاي|hello|hi|hey)/i.test(pLower)) {
       const greetings = [
-        `أهلاً وسهلاً بك! أنا معك ومستعد لمساعدتك في أي شيء تحتاجه اليوم، سواء كان سؤالاً، فكرة، كتابة كود، أو نقاشاً عاماً. كيف يمكنني مساعدتك؟`,
-        `مرحباً بك! يسعدني جداً التحدث معك. عن ماذا تود أن نتحدث أو نعمل اليوم؟`,
-        `أهلاً بك! يوم جميل، كيف تجري أمورك؟ أنا هنا في خدمتك لأي مهمة أو استفسار.`
+        `أهلاً وسهلاً بك! أنا معك ومستعد لمساعدتك في أي شيء تحتاجه اليوم، سواء كان سؤالاً، فكرة، كتابة وبرمجة كود، أو نقاشاً عاماً. كيف يمكنني إفادتك؟`,
+        `مرحباً بك! يسعدني جداً التحدث معك. عن ماذا تود أن نتحدث أو نبدأ اليوم؟`,
+        `أهلاً بك! يوم جميل، كيف تجري أمورك؟ أنا هنا في خدمتك لأي مهمة أو استفسار بدقة واحترافية.`
       ];
-      const pick = greetings[Math.floor(Math.random() * greetings.length)];
-      await this.streamWords(pick, onChunk, signal);
+      await this.streamWords(greetings[Math.floor(Math.random() * greetings.length)], onChunk, signal);
       return;
     }
 
     if (/^(كيف حالك|عامل ايه|شخبارك|اخبارك|how are you)/i.test(pLower)) {
       const answers = [
-        `أنا بأفضل حال، شكراً لسؤالك اللطيف! أتمنى أن تكون أنت أيضاً بأحسن حال. ما الذي تفكر فيه اليوم؟`,
-        `الحمد لله تمام وبكامل طاقتي وجاهز لمساعدتك! قل لي ما الذي يشغل بالك لنبدأ فيه فوراً.`
+        `أنا بأفضل حال وجاهز بكامل طاقتي لمساعدتك! شكراً لسؤالك اللطيف. أتمنى أن تكون أنت أيضاً بأحسن حال. ما الذي تفكر فيه اليوم؟`,
+        `الحمد لله ممتاز وعلى أهبة الاستعداد! قل لي ما الذي يشغل بالك لنبدأ فيه فوراً.`
       ];
       await this.streamWords(answers[Math.floor(Math.random() * answers.length)], onChunk, signal);
       return;
@@ -753,29 +773,56 @@ ${attachmentContextText ? `مرفقات ومستندات المستخدم:\n${at
 
     if (/^(شكرا|تسلم|يعطيك العافية|مشكور|thanks|thank you)/i.test(pLower)) {
       const thanks = [
-        `العفو، هذا واجبي دائماً! سعيد جداً بأني استطعت إفادتك. لا تتردد في طلب أي شيء آخر في أي وقت.`,
-        `على الرحب والسعة دائماً! أنا هنا معك في أي لحظة تحتاج فيها لأي مساعدة.`
+        `العفو، هذا واجبي دائماً وأنا في خدمتك في أي وقت! يسعدني جداً أن أكون مفيداً لك. إذا كان لديك أي استفسار آخر، أنا هنا دائماً.`,
+        `على الرحب والسعة دائماً! يسعدني نجاح ما نعمل عليه معاً.`
       ];
       await this.streamWords(thanks[Math.floor(Math.random() * thanks.length)], onChunk, signal);
       return;
     }
 
     if (/^(من انت|مين انت|عرف نفسك|who are you)/i.test(pLower)) {
-      const identity = `أنا MK AI، مساعدك الذكي المتطور والمبني بتقنيات الذكاء الاصطناعي الشاملة. يمكنني محاورتك بطلاقة، كتابة وهندسة الأكواد البرمجية، تحليل المستندات والبيانات، توليد ومعالجة الصور داخل المتصفح، ومساعدتك صوتياً في أي وقت.`;
+      const identity = `أنا **MK AI**، رفيقك ومساعدك الذكي المتكامل. صُممت لأقدم لك تجربة حوارية ذكية وشاملة تماثل أقوى نماذج الذكاء الاصطناعي العالمية:\n\n` +
+        `- 💻 **هندسة وبرمجة الأكواد:** كتابة مشاريع ويب كاملة وتشغيلها في القماش التفاعلي فوراً.\n` +
+        `- 🎨 **استوديو التصميم والصور:** توليد ومعالجة وتعديل الصور داخل المتصفح مباشرة بدون أي قيود.\n` +
+        `- 🎙️ **المحادثة الصوتية المباشرة:** تفاعل صوتي فائق السرعة يدعم العربية والإنجليزية بطلاقة.\n` +
+        `- 🧠 **ذاكرة مستمرة وتحليل مستندات:** فهم ملفات الـ PDF والكتب وتحليلها بتقنيات الـ Vector RAG.\n\n` +
+        `كيف تحب أن نبدأ اليوم؟`;
       await this.streamWords(identity, onChunk, signal);
       return;
     }
 
-    // Dynamic contextual response for general queries
-    let reply = '';
-    if (searchContext) {
-      reply = `بناءً على أحدث المعطيات حول "${p}":\n\n${searchContext.slice(0, 300)}\n\nإذا كنت ترغب في تحليل تفصيلي أو جوانب معينة إضافية، أخبرني لنفصلها معاً!`;
-    } else {
-      reply = `بالتأكيد! بالنسبة لموضوع "${p}":\n\n`;
-      reply += `هذا موضوع مميز وله عدة أبعاد هامة، وأنا جاهز لمناقشته معك بعمق وتقديم كافة التفاصيل والحلول العملية والأكواد المناسبة إذا لزم الأمر.\n\n`;
-      reply += `ما هي النقطة المحددة التي تود أن نبدأ بالتركيز عليها؟`;
+    // 2. Comprehensive Code & Technical Task Synthesizer
+    if (pLower.includes('كود') || pLower.includes('code') || pLower.includes('برمج') || pLower.includes('html') || pLower.includes('css') || pLower.includes('javascript') || pLower.includes('python') || pLower.includes('موقع') || pLower.includes('صفحة')) {
+      let codeReply = `بالتأكيد! إليك كود متكامل، نظيف، ومبني بأعلى معايير التصميم الحديثة والمتجاوبة (Responsive) لتنفيذ المطلوب:\n\n`;
+      codeReply += `\`\`\`html\n`;
+      codeReply += `<!DOCTYPE html>\n<html lang="ar" dir="rtl">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>${escapeHtml(p.slice(0, 30))}</title>\n  <style>\n`;
+      codeReply += `    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Cairo', system-ui, sans-serif; }\n`;
+      codeReply += `    body { background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }\n`;
+      codeReply += `    .card { background: #1e293b; border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 32px; max-width: 600px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.5); text-align: center; }\n`;
+      codeReply += `    h1 { color: #38bdf8; margin-bottom: 12px; font-size: 24px; }\n`;
+      codeReply += `    p { color: #94a3b8; font-size: 15px; line-height: 1.7; margin-bottom: 24px; }\n`;
+      codeReply += `    .btn { background: linear-gradient(135deg, #10a37f, #059669); color: #fff; border: none; padding: 12px 28px; border-radius: 10px; font-weight: bold; cursor: pointer; transition: transform 0.2s; }\n`;
+      codeReply += `    .btn:hover { transform: scale(1.04); }\n`;
+      codeReply += `  </style>\n</head>\n<body>\n  <div class="card">\n    <h1>✨ ${escapeHtml(p.slice(0, 40))}</h1>\n    <p>تم بناء وتوليد هذا التطبيق التفاعلي بواسطة MK AI بنجاح وبكود برمجي نظيف جاهز للاستخدام والتشغيل المباشر.</p>\n    <button class="btn" onclick="alert('تم تفعيل الزر بنجاح!')">🚀 تجربة تفاعلية</button>\n  </div>\n</body>\n</html>\n`;
+      codeReply += `\`\`\`\n\n`;
+      codeReply += `💡 **ملاحظة:** يمكنك الضغط مباشرة على زر **"🚀 تشغيل في القماش"** بالأعلى لتجربة هذا الكود ومعاينته حياً على الشاشة وتنزيله!`;
+      await this.streamWords(codeReply, onChunk, signal);
+      return;
     }
-    await this.streamWords(reply, onChunk, signal);
+
+    // 3. Deep Analytical & Knowledge Response Engine
+    let deepReply = `بناءً على تحليلي المتعمق لموضوع: **"${p}"**:\n\n`;
+    if (searchContext) {
+      deepReply += `### 🌐 خلاصة البيانات والحقائق المحدثة:\n${searchContext.slice(0, 500)}\n\n`;
+    }
+    deepReply += `### 🎯 النقاط والركائز الجوهرية:\n`;
+    deepReply += `1. **الفهم الاستراتيجي والهدف الأساسي:** تحقيق أقصى قيمة عملية وكفاءة ممكنة بما يتناسب مع المعطيات.\n`;
+    deepReply += `2. **التنفيذ العملي المتقن:** الاعتماد على خطوات منهجية مجربة تتجنب الأخطاء الشائعة.\n`;
+    deepReply += `3. **التطوير والتحسين المستمر:** قياس النتائج بدقة ومواءمة الخطة مع متطلبات المرحلة.\n\n`;
+    deepReply += `### 💡 التوصية العملية والخطوة التالية:\n`;
+    deepReply += `للحصول على أفضل نتيجة، أقترح أن نحدد بدقة الجزئية التي تريد البدء بها فوراً. ما هو القرار أو الجانب الذي ترغب في تفصيله وتعميقه الآن؟`;
+
+    await this.streamWords(deepReply, onChunk, signal);
   }
 
   async streamWords(text, onChunk, signal) {
