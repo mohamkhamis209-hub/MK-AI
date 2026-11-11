@@ -1742,6 +1742,11 @@ body {
   border-color: var(--accent);
 }
 
+/* Sidebar Backdrop (Hidden on Desktop) */
+.sidebar-backdrop {
+  display: none;
+}
+
 /* =====================================================================
    Mobile Responsive
    ===================================================================== */
