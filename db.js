@@ -1,7 +1,7 @@
 /**
  * MK AI - Local In-Browser SQLite Database (WASM + IndexedDB Storage)
- * Supports full SQLite schema, persistent storage, single chat export,
- * and complete phone-to-phone backup export & import (.mkbackup / JSON).
+ * Supports full SQLite schema, persistent storage, pinned chats, custom GPTs,
+ * document vector chunks, and full backup/export.
  */
 
 class MKDatabase {
@@ -15,13 +15,11 @@ class MKDatabase {
 
   async init() {
     try {
-      // 1. Try loading SQL.js from CDN if available
       if (window.initSqlJs) {
         const SQL = await window.initSqlJs({
           locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.12.0/${file}`
         });
 
-        // Check if there is saved SQLite binary in IndexedDB
         const savedBinary = await this.loadBinaryFromIndexedDB();
         if (savedBinary) {
           this.db = new SQL.Database(savedBinary);
@@ -32,6 +30,7 @@ class MKDatabase {
         }
         this.isWasmLoaded = true;
         this.createTables();
+        await this.seedDefaultGPTs();
         await this.persist();
         return;
       }
@@ -39,8 +38,8 @@ class MKDatabase {
       console.warn('[MK Database] SQL.js WASM load failed or offline, falling back to Native Local Storage engine:', err);
     }
 
-    // Fallback: Persistent In-Browser Relational Store with identical SQL semantics
     await this.initFallbackEngine();
+    await this.seedDefaultGPTs();
   }
 
   createTables() {
@@ -51,7 +50,9 @@ class MKDatabase {
         title TEXT,
         created_at TEXT,
         updated_at TEXT,
-        model_used TEXT
+        model_used TEXT,
+        is_pinned INTEGER DEFAULT 0,
+        gpt_id TEXT DEFAULT 'default'
       );
 
       CREATE TABLE IF NOT EXISTS messages (
@@ -62,6 +63,7 @@ class MKDatabase {
         reasoning TEXT,
         citations TEXT,
         created_at TEXT,
+        artifact_data TEXT,
         FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
       );
 
@@ -73,14 +75,86 @@ class MKDatabase {
         file_data_base64 TEXT
       );
 
+      CREATE TABLE IF NOT EXISTS custom_gpts (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        description TEXT,
+        avatar TEXT,
+        system_prompt TEXT,
+        category TEXT,
+        created_at TEXT
+      );
+
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT
       );
     `);
+
+    // Ensure columns exist for existing databases
+    try { this.db.run(`ALTER TABLE conversations ADD COLUMN is_pinned INTEGER DEFAULT 0;`); } catch (e) {}
+    try { this.db.run(`ALTER TABLE conversations ADD COLUMN gpt_id TEXT DEFAULT 'default';`); } catch (e) {}
+    try { this.db.run(`ALTER TABLE messages ADD COLUMN artifact_data TEXT;`); } catch (e) {}
   }
 
-  // --- IndexedDB Binary Persistence Helpers ---
+  async seedDefaultGPTs() {
+    const existing = await this.getCustomGPTs();
+    if (existing.length === 0) {
+      const defaultGPTs = [
+        {
+          id: 'gpt-coder',
+          name: 'MK Code Architect',
+          description: 'مهندس برمجيات أول متخصص في بناء وتطوير وهندسة الأكواد وحل المشكلات المعقدة.',
+          avatar: '💻',
+          system_prompt: 'أنت مهندس برمجيات أول (Senior Software Engineer). كودك فائق النظافة، يتبع أفضل الممارسات البرمجية، متقن للأمان والأداء، ويحتوي على تعليقات شارحة.',
+          category: 'البرمجة والتطوير',
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'gpt-legal',
+          name: 'MK المستشار القانوني',
+          description: 'صياغة ومراجعة العقود، الاستشارات القانونية، وتحليل البنود والاتفاقيات بدقة.',
+          avatar: '⚖️',
+          system_prompt: 'أنت مستشار قانوني خبير في صياغة العقود التجارية، الاتفاقيات، اللوائح، وحماية الحقوق. أسلوبك رصين وموثق.',
+          category: 'القانون والأعمال',
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'gpt-creative',
+          name: 'MK الكاتب الإبداعي',
+          description: 'تأليف القصص المشوقة، كتابة المقالات، وتصميم الحملات الإعلانية والمحتوى التسويقي.',
+          avatar: '✍️',
+          system_prompt: 'أنت كاتب أدبي وإعلاني مبدع. أسلوبك ساحر وبلاغي يجذب القارئ ويصنع نصوصاً متفردة ومشوقة.',
+          category: 'الكتابة والإبداع',
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'gpt-health',
+          name: 'MK كوتش اللياقة والصحة',
+          description: 'خطط التغذية السليمة، جداول التمارين الرياضية، وبناء نمط حياة صحي ومتوازن.',
+          avatar: '🩺',
+          system_prompt: 'أنت مدرب لياقة بدنية وأخصائي تغذية رياضية. تقدم نصائح علمية دقيقة لبناء العضلات وخسارة الدهون والتمتع بصحة مثالية.',
+          category: 'الصحة والرياضة',
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'gpt-translator',
+          name: 'MK المترجم الاحترافي',
+          description: 'ترجمة فورية متقنة بين اللغات مع الحفاظ على روح وسياق المعنى البشري.',
+          avatar: '🌐',
+          system_prompt: 'أنت مترجم فوري محترف تتقن النقل الدقيق للمصطلحات والسياقات الثقافية بين اللغات بدون أي ترجمة حرفية ركيكة.',
+          category: 'اللغات والترجمة',
+          created_at: new Date().toISOString()
+        }
+      ];
+
+      for (const gpt of defaultGPTs) {
+        await this.createCustomGPT(gpt);
+      }
+    }
+  }
+
+  // --- IndexedDB Persistence ---
   openIndexedDB() {
     return new Promise((resolve, reject) => {
       const req = indexedDB.open(this.indexedDbName, 1);
@@ -126,11 +200,11 @@ class MKDatabase {
     }
   }
 
-  // --- Conversations Operations ---
-  async getConversations() {
+  // --- Custom GPTs Operations ---
+  async getCustomGPTs() {
     await this.initPromise;
     if (this.isWasmLoaded && this.db) {
-      const res = this.db.exec("SELECT * FROM conversations ORDER BY updated_at DESC");
+      const res = this.db.exec("SELECT * FROM custom_gpts ORDER BY created_at ASC");
       if (res.length > 0) {
         const cols = res[0].columns;
         return res[0].values.map(val => {
@@ -141,24 +215,89 @@ class MKDatabase {
       }
       return [];
     }
-    return this.fallbackStore.conversations.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+    return this.fallbackStore.custom_gpts || [];
   }
 
-  async createConversation(id, title, model = 'MK Local Engine') {
+  async createCustomGPT(gpt) {
+    await this.initPromise;
+    const now = gpt.created_at || new Date().toISOString();
+    if (this.isWasmLoaded && this.db) {
+      this.db.run(
+        "INSERT OR REPLACE INTO custom_gpts (id, name, description, avatar, system_prompt, category, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [gpt.id, gpt.name, gpt.description, gpt.avatar, gpt.system_prompt, gpt.category || 'عام', now]
+      );
+      await this.persist();
+      return gpt;
+    }
+    if (!this.fallbackStore.custom_gpts) this.fallbackStore.custom_gpts = [];
+    this.fallbackStore.custom_gpts = this.fallbackStore.custom_gpts.filter(g => g.id !== gpt.id);
+    this.fallbackStore.custom_gpts.push({ ...gpt, created_at: now });
+    await this.persist();
+    return gpt;
+  }
+
+  async deleteCustomGPT(id) {
+    await this.initPromise;
+    if (this.isWasmLoaded && this.db) {
+      this.db.run("DELETE FROM custom_gpts WHERE id = ?", [id]);
+      await this.persist();
+      return;
+    }
+    this.fallbackStore.custom_gpts = (this.fallbackStore.custom_gpts || []).filter(g => g.id !== id);
+    await this.persist();
+  }
+
+  // --- Conversations Operations ---
+  async getConversations() {
+    await this.initPromise;
+    if (this.isWasmLoaded && this.db) {
+      const res = this.db.exec("SELECT * FROM conversations ORDER BY is_pinned DESC, updated_at DESC");
+      if (res.length > 0) {
+        const cols = res[0].columns;
+        return res[0].values.map(val => {
+          const obj = {};
+          cols.forEach((col, idx) => obj[col] = val[idx]);
+          return obj;
+        });
+      }
+      return [];
+    }
+    return (this.fallbackStore.conversations || []).sort((a, b) => {
+      if (b.is_pinned !== a.is_pinned) return (b.is_pinned || 0) - (a.is_pinned || 0);
+      return new Date(b.updated_at) - new Date(a.updated_at);
+    });
+  }
+
+  async createConversation(id, title, model = 'mk-4o', gptId = 'default') {
     await this.initPromise;
     const now = new Date().toISOString();
     if (this.isWasmLoaded && this.db) {
       this.db.run(
-        "INSERT INTO conversations (id, title, created_at, updated_at, model_used) VALUES (?, ?, ?, ?, ?)",
-        [id, title, now, now, model]
+        "INSERT INTO conversations (id, title, created_at, updated_at, model_used, is_pinned, gpt_id) VALUES (?, ?, ?, ?, ?, 0, ?)",
+        [id, title, now, now, model, gptId]
       );
       await this.persist();
-      return { id, title, created_at: now, updated_at: now, model_used: model };
+      return { id, title, created_at: now, updated_at: now, model_used: model, is_pinned: 0, gpt_id: gptId };
     }
-    const conv = { id, title, created_at: now, updated_at: now, model_used: model };
+    const conv = { id, title, created_at: now, updated_at: now, model_used: model, is_pinned: 0, gpt_id: gptId };
+    if (!this.fallbackStore.conversations) this.fallbackStore.conversations = [];
     this.fallbackStore.conversations.push(conv);
     await this.persist();
     return conv;
+  }
+
+  async togglePinConversation(id) {
+    await this.initPromise;
+    if (this.isWasmLoaded && this.db) {
+      this.db.run("UPDATE conversations SET is_pinned = CASE WHEN is_pinned = 1 THEN 0 ELSE 1 END WHERE id = ?", [id]);
+      await this.persist();
+      return;
+    }
+    const c = (this.fallbackStore.conversations || []).find(item => item.id === id);
+    if (c) {
+      c.is_pinned = c.is_pinned ? 0 : 1;
+      await this.persist();
+    }
   }
 
   async updateConversationTitle(id, newTitle) {
@@ -169,7 +308,7 @@ class MKDatabase {
       await this.persist();
       return;
     }
-    const c = this.fallbackStore.conversations.find(item => item.id === id);
+    const c = (this.fallbackStore.conversations || []).find(item => item.id === id);
     if (c) {
       c.title = newTitle;
       c.updated_at = now;
@@ -185,8 +324,8 @@ class MKDatabase {
       await this.persist();
       return;
     }
-    this.fallbackStore.messages = this.fallbackStore.messages.filter(m => m.conversation_id !== id);
-    this.fallbackStore.conversations = this.fallbackStore.conversations.filter(c => c.id !== id);
+    this.fallbackStore.messages = (this.fallbackStore.messages || []).filter(m => m.conversation_id !== id);
+    this.fallbackStore.conversations = (this.fallbackStore.conversations || []).filter(c => c.id !== id);
     await this.persist();
   }
 
@@ -202,7 +341,6 @@ class MKDatabase {
           cols.forEach((col, idx) => obj[col] = val[idx]);
           return obj;
         });
-        // Attach attachments
         for (const msg of msgs) {
           msg.attachments = await this.getAttachmentsForMessage(msg.id);
         }
@@ -210,7 +348,7 @@ class MKDatabase {
       }
       return [];
     }
-    const msgs = this.fallbackStore.messages
+    const msgs = (this.fallbackStore.messages || [])
       .filter(m => m.conversation_id === conversationId)
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
     for (const msg of msgs) {
@@ -224,15 +362,15 @@ class MKDatabase {
     const id = msg.id || 'msg-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
     const now = msg.created_at || new Date().toISOString();
     const citations = typeof msg.citations === 'string' ? msg.citations : JSON.stringify(msg.citations || []);
+    const artifactData = msg.artifact_data ? (typeof msg.artifact_data === 'string' ? msg.artifact_data : JSON.stringify(msg.artifact_data)) : null;
 
     if (this.isWasmLoaded && this.db) {
       this.db.run(
-        "INSERT INTO messages (id, conversation_id, role, content, reasoning, citations, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        [id, msg.conversation_id, msg.role, msg.content, msg.reasoning || '', citations, now]
+        "INSERT INTO messages (id, conversation_id, role, content, reasoning, citations, created_at, artifact_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [id, msg.conversation_id, msg.role, msg.content, msg.reasoning || '', citations, now, artifactData]
       );
       this.db.run("UPDATE conversations SET updated_at = ? WHERE id = ?", [now, msg.conversation_id]);
 
-      // Save attachments if any
       if (msg.attachments && msg.attachments.length > 0) {
         for (const att of msg.attachments) {
           const attId = att.id || 'att-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
@@ -253,11 +391,14 @@ class MKDatabase {
       content: msg.content,
       reasoning: msg.reasoning || '',
       citations: citations,
-      created_at: now
+      created_at: now,
+      artifact_data: artifactData
     };
+    if (!this.fallbackStore.messages) this.fallbackStore.messages = [];
     this.fallbackStore.messages.push(messageObj);
 
     if (msg.attachments && msg.attachments.length > 0) {
+      if (!this.fallbackStore.attachments) this.fallbackStore.attachments = [];
       msg.attachments.forEach(att => {
         this.fallbackStore.attachments.push({
           id: att.id || 'att-' + Date.now(),
@@ -269,7 +410,7 @@ class MKDatabase {
       });
     }
 
-    const c = this.fallbackStore.conversations.find(item => item.id === msg.conversation_id);
+    const c = (this.fallbackStore.conversations || []).find(item => item.id === msg.conversation_id);
     if (c) c.updated_at = now;
     await this.persist();
     return id;
@@ -301,7 +442,7 @@ class MKDatabase {
       }
       return defaultValue;
     }
-    return this.fallbackStore.settings[key] ?? defaultValue;
+    return (this.fallbackStore.settings || {})[key] ?? defaultValue;
   }
 
   async setSetting(key, value) {
@@ -311,14 +452,12 @@ class MKDatabase {
       await this.persist();
       return;
     }
+    if (!this.fallbackStore.settings) this.fallbackStore.settings = {};
     this.fallbackStore.settings[key] = String(value);
     await this.persist();
   }
 
-  // --- Backup & Portability (Section 4) ---
-  /**
-   * Export single conversation as formatted Markdown or JSON
-   */
+  // --- Export Helpers ---
   async exportConversation(conversationId, format = 'markdown') {
     const convs = await this.getConversations();
     const current = convs.find(c => c.id === conversationId);
@@ -329,7 +468,19 @@ class MKDatabase {
       return JSON.stringify({ conversation: current, messages }, null, 2);
     }
 
-    // Markdown format
+    if (format === 'html') {
+      let html = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>${current.title} - MK AI</title>`;
+      html += `<style>body{font-family:system-ui,sans-serif;padding:30px;max-width:800px;margin:auto;background:#0d1117;color:#e6edf3;}h1{color:#10a37f;border-bottom:1px solid #30363d;padding-bottom:12px;}.msg{margin:20px 0;padding:16px;border-radius:10px;line-height:1.6;}.user{background:#21262d;}.assistant{background:#161b22;border:1px solid #30363d;}.meta{font-size:12px;color:#8b949e;margin-bottom:8px;font-weight:bold;}</style></head><body>`;
+      html += `<h1>${current.title}</h1><p style="color:#8b949e;">تاريخ المحادثة: ${new Date(current.created_at).toLocaleString('ar-EG')} | النموذج: ${current.model_used}</p><hr style="border-color:#30363d;">`;
+      messages.forEach(m => {
+        const sender = m.role === 'user' ? '👤 أنت' : '🤖 MK AI';
+        html += `<div class="msg ${m.role}"><div class="meta">${sender} (${new Date(m.created_at).toLocaleTimeString('ar-EG')})</div><div>${m.content.replace(/\n/g, '<br>')}</div></div>`;
+      });
+      html += `</body></html>`;
+      return html;
+    }
+
+    // Markdown
     let md = `# ${current.title}\n`;
     md += `*تاريخ المحادثة: ${new Date(current.created_at).toLocaleString('ar-EG')}*\n`;
     md += `*النموذج: ${current.model_used}*\n\n---\n\n`;
@@ -350,12 +501,10 @@ class MKDatabase {
     return md;
   }
 
-  /**
-   * Full database backup export (.mkbackup file)
-   */
   async exportFullBackup() {
     await this.initPromise;
     const conversations = await this.getConversations();
+    const gpts = await this.getCustomGPTs();
     let allMessages = [];
     let allAttachments = [];
 
@@ -369,20 +518,18 @@ class MKDatabase {
     }
 
     const backupData = {
-      version: '1.0',
+      version: '3.0',
       app: 'MK AI',
       exported_at: new Date().toISOString(),
       conversations,
       messages: allMessages,
-      attachments: allAttachments
+      attachments: allAttachments,
+      custom_gpts: gpts
     };
 
     return JSON.stringify(backupData, null, 2);
   }
 
-  /**
-   * Import full backup from .mkbackup file
-   */
   async importFullBackup(jsonContent) {
     await this.initPromise;
     const data = JSON.parse(jsonContent);
@@ -391,8 +538,17 @@ class MKDatabase {
       throw new Error('ملف النسخة الاحتياطية غير صالح.');
     }
 
+    if (data.custom_gpts && Array.isArray(data.custom_gpts)) {
+      for (const gpt of data.custom_gpts) {
+        await this.createCustomGPT(gpt);
+      }
+    }
+
     for (const conv of data.conversations) {
-      await this.createConversation(conv.id, conv.title, conv.model_used);
+      await this.createConversation(conv.id, conv.title, conv.model_used, conv.gpt_id || 'default');
+      if (conv.is_pinned) {
+        await this.togglePinConversation(conv.id);
+      }
     }
 
     if (data.messages && Array.isArray(data.messages)) {
@@ -408,17 +564,16 @@ class MKDatabase {
     };
   }
 
-  // --- Fallback In-Browser Relational Store ---
   async initFallbackEngine() {
     const raw = localStorage.getItem('MK_AI_LOCAL_DB');
     if (raw) {
       try {
         this.fallbackStore = JSON.parse(raw);
       } catch (e) {
-        this.fallbackStore = { conversations: [], messages: [], attachments: [], settings: {} };
+        this.fallbackStore = { conversations: [], messages: [], attachments: [], custom_gpts: [], settings: {} };
       }
     } else {
-      this.fallbackStore = { conversations: [], messages: [], attachments: [], settings: {} };
+      this.fallbackStore = { conversations: [], messages: [], attachments: [], custom_gpts: [], settings: {} };
     }
   }
 

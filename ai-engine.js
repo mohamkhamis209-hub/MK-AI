@@ -1,11 +1,13 @@
 /**
- * MK AI - Advanced Conversational Engine
+ * MK AI - Autonomous Conversational & Multi-Capability Engine
  * Features:
- * 1. Multi-Model Architecture (MK 4o, MK o1 Reasoning, MK Coder, MK Vision)
- * 2. Deep Thinking / Reasoning Mode (displays collapsible chain-of-thought)
- * 3. AbortController support for instant "Stop Generating" (⏹)
- * 4. Multi-turn conversational memory with smart context truncation
- * 5. Optional live web search (activated only on demand)
+ * 1. Natural Human Dialogue in Any Subject
+ * 2. Autonomous Background Search (silent, conversational synthesis)
+ * 3. AI Image Generation (Flux & SD High-Res generator)
+ * 4. Interactive Artifacts Code Sandbox detection (HTML/CSS/JS live apps)
+ * 5. Semantic Vector RAG Context Ingestion (multi-page PDF search)
+ * 6. Custom GPT Persona Loading
+ * 7. Instant Stop Generation (⏹ AbortController)
  */
 
 class MKAIEngine {
@@ -13,9 +15,6 @@ class MKAIEngine {
     this.currentAbortController = null;
   }
 
-  /**
-   * Stop any ongoing generation immediately
-   */
   stopGeneration() {
     if (this.currentAbortController) {
       this.currentAbortController.abort();
@@ -26,122 +25,57 @@ class MKAIEngine {
   }
 
   /**
-   * Main generation method with full streaming and reasoning support
+   * Detects if the prompt is asking to draw or generate an image
    */
-  async generateResponse(params, onChunk) {
-    this.stopGeneration();
-    this.currentAbortController = new AbortController();
-    const signal = this.currentAbortController.signal;
-
-    const {
-      prompt,
-      conversationHistory = [],
-      attachments = [],
-      enableWebSearch = false,
-      model = 'mk-4o', // 'mk-4o' | 'mk-o1' | 'mk-coder' | 'custom-api'
-      apiKey = ''
-    } = params;
-
-    let searchCitations = [];
-    let searchContextText = '';
-
-    // Check if user explicitly asked for web search in their query
-    const explicitSearch = this.isExplicitSearchRequest(prompt);
-    const shouldSearch = enableWebSearch || explicitSearch;
-
-    if (shouldSearch) {
-      onChunk({ type: 'status', message: '🌐 جاري البحث في الويب والتحقق من أحدث المعلومات...' });
-      const searchResults = await this.performWebSearch(prompt);
-      if (searchResults && searchResults.length > 0) {
-        searchCitations = searchResults;
-        searchContextText = "\n\n[معلومات موثقة من البحث المباشر في الويب]:\n" +
-          searchResults.map((r, i) => `[${i + 1}] العنوان: ${r.title}\nالمصدر: ${r.url}\nالملخص: ${r.snippet}`).join("\n\n");
-      }
-    }
-
-    // Attachments text / OCR ingestion
-    let attachmentContextText = '';
-    if (attachments && attachments.length > 0) {
-      onChunk({ type: 'status', message: '📎 جاري استخراج وقراءة محتوى الملفات المرفقة...' });
-      attachments.forEach((att) => {
-        if (att.text) {
-          attachmentContextText += `\n\n[محتوى الملف المرفق (${att.name})]:\n${att.text.slice(0, 12000)}\n`;
-        } else if (att.type && att.type.startsWith('image/')) {
-          attachmentContextText += `\n\n[صورة مرفقة باسم ${att.name}]\n`;
-        }
-      });
-    }
-
-    // System instruction tailored to chosen MK model
-    const isReasoningModel = model === 'mk-o1';
-    const isCoderModel = model === 'mk-coder';
-
-    const systemPrompt = `أنت "MK AI"، المساعد الذكي الخارق الأكثر تطوراً وفصاحة، والمصمم ليقدم تجربة محادثة مطابقة تماماً لشات جي بي تي (ChatGPT).
-خصائص شخصيتك:
-- أسلوبك: طبيعي، ذكي، فصيح، ودود، ومتعاون إلى أقصى حد.
-- القدرات: إجابة فورية عن الأسئلة العامة، كتابة وتحليل الأكواد البرمجية، التدقيق اللغوي، التلخيص، صياغة المقالات، حل المشكلات والمسائل الحسابية.
-- التنسيق: استخدم Markdown احترافي، واستخدم كتل الأكواد البرمجية مع ذكر لغة البرمجة دائماً عند كتابة أي كود.
-${isCoderModel ? '- أنت تعمل بوضع "MK Coder"، فركز على أفضل الممارسات البرمجية وتوفير كود نظيف، منظم وموثق بالتعليقات.' : ''}
-${searchContextText ? '- استند بدقة للمعلومات المجلوبة من الويب واذكر أرقام المراجع عند الحاجة: ' + searchContextText : ''}
-${attachmentContextText ? '- محتوى المرفقات المتاحة من المستخدم: ' + attachmentContextText : ''}`;
-
-    // If MK o1 Reasoning Mode: Simulate genuine deep reasoning chain-of-thought
-    if (isReasoningModel) {
-      onChunk({ type: 'status', message: '🧠 التفكير المتعمق وتحليل المعطيات (o1 Reasoning Mode)...' });
-      const reasoningThoughts = this.generateReasoningThoughts(prompt, shouldSearch, attachments.length > 0);
-      for (const thought of reasoningThoughts) {
-        if (signal.aborted) return;
-        onChunk({ type: 'reasoning', delta: thought + '\n' });
-        await new Promise(r => setTimeout(r, 280));
-      }
-    } else {
-      onChunk({ type: 'status', message: '⚡ جاري كتابة الرد...' });
-    }
-
-    // Call execution backends
-    try {
-      if (apiKey) {
-        await this.generateViaCustomAPI(apiKey, prompt, systemPrompt, conversationHistory, onChunk, signal);
-      } else {
-        await this.generateViaDirectStream(prompt, systemPrompt, conversationHistory, model, onChunk, signal);
-      }
-    } catch (err) {
-      if (err.name === 'AbortError' || signal.aborted) {
-        console.log('[MK AI] Generation stopped by user.');
-        return;
-      }
-      console.warn('[MK AI] Primary generation failed, using dynamic local synthesis:', err);
-      await this.generateLocalFallback(prompt, isReasoningModel, onChunk, signal);
-    }
-
-    onChunk({ type: 'done', citations: searchCitations });
-    this.currentAbortController = null;
-  }
-
-  generateReasoningThoughts(prompt, hasSearch, hasAttachments) {
-    const thoughts = [
-      '1. فحص وتفكيك متطلبات السؤال بدقة وتحديد الهدف الأساسي للمستخدم.',
-      '2. استحضار المفاهيم الهندسية والمعلومات المرتبطة بالسياق.',
-      hasAttachments ? '3. مراجعة المستندات والملفات المرفقة ومطابقتها مع الاستفسار.' : '3. تقييم أفضل الهياكل المنطقية لصياغة الإجابة.',
-      hasSearch ? '4. التحقق من المصادر المسترجعة وضمان موثوقية الحقائق والأرقام.' : '4. بناء الإجابة بأسلوب متماسك وشامل مع أمثلة عملية.',
-      '5. إنهاء مسار الاستدلال وتجهيز الصياغة النهائية الأوضح والأكثر إفادة.'
-    ];
-    return thoughts;
-  }
-
-  isExplicitSearchRequest(prompt) {
+  isImageGenerationRequest(prompt) {
     const p = prompt.trim().toLowerCase();
-    return p.startsWith('ابحث في النت') || 
-           p.startsWith('ابحث في الويب') || 
-           p.startsWith('ابحث عن') || 
-           p.startsWith('search for') || 
-           p.startsWith('search web');
+    const imageKeywords = [
+      'ارسم', 'صمم لي صورة', 'ولد صورة', 'أنشئ صورة', 'اصنع صورة', 'تخيل صورة',
+      'draw', 'generate image', 'paint', 'create an image of', 'image of', 'picture of', 'photo of', 'illustration of'
+    ];
+    return imageKeywords.some(k => p.includes(k));
+  }
+
+  /**
+   * Generates a high-res image via Pollinations Flux
+   */
+  generateImageArtifact(prompt) {
+    const cleanPrompt = prompt
+      .replace(/^(ارسم لي|ارسم|صمم لي صورة|ولد صورة|أنشئ صورة|اصنع صورة|draw a|generate image of|image of|picture of)\s+/i, '')
+      .trim();
+
+    const seed = Math.floor(Math.random() * 9999999);
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1024&height=1024&model=flux&nologo=true&seed=${seed}`;
+
+    return {
+      type: 'image',
+      url: imageUrl,
+      prompt: cleanPrompt,
+      title: `تصميم: ${cleanPrompt.slice(0, 30)}...`
+    };
+  }
+
+  needsAutonomousSearch(prompt) {
+    const p = prompt.trim().toLowerCase();
+    if (/^(ابحث|دور|سرش|search|find|look up)\b/i.test(p)) return true;
+
+    const temporalWords = [
+      'اليوم', 'أمس', 'الآن', 'حالياً', 'السنة دي', 'هذا العام', 'سنة 2024', 'سنة 2025', 'سنة 2026', '2025', '2026',
+      'أخبار', 'خبر', 'تريند', 'مؤتمر', 'ماتش', 'مباراة', 'مين فاز', 'نتيجة', 'ترتيب', 'دوري',
+      'سعر', 'أسعار', 'كام سعر', 'بكام', 'الدولار', 'الذهب', 'العملات', 'البتكوين', 'crypto', 'price', 'rates',
+      'طقس', 'الجو', 'درجة الحرارة', 'weather',
+      'مواصفات', 'إصدار', 'أحدث تليفون', 'آيفون', 'سامسونج', 'release date', 'specs',
+      'آخر تطورات', 'إيه الجديد', 'ما الجديد'
+    ];
+
+    return temporalWords.some(w => p.includes(w));
   }
 
   async performWebSearch(query) {
     const results = [];
     const cleanQ = query
-      .replace(/^(ابحث في النت عن|ابحث في الويب عن|ابحث عن|search for|search web for)\s+/i, '')
+      .replace(/^(ابحث في النت عن|ابحث في الويب عن|ابحث عن|دور لي عن|search for|search web for)\s+/i, '')
+      .replace(/[^\w\s\u0600-\u06FF]/gi, ' ')
       .trim();
 
     try {
@@ -160,7 +94,7 @@ ${attachmentContextText ? '- محتوى المرفقات المتاحة من ا�
           data.RelatedTopics.slice(0, 3).forEach(item => {
             if (item.Text && item.FirstURL) {
               results.push({
-                title: item.Text.split(' - ')[0] || 'مصدر ويب',
+                title: item.Text.split(' - ')[0] || cleanQ,
                 snippet: item.Text,
                 url: item.FirstURL
               });
@@ -169,7 +103,7 @@ ${attachmentContextText ? '- محتوى المرفقات المتاحة من ا�
         }
       }
     } catch (e) {
-      console.warn('[MK Search Error]:', e);
+      console.warn('[MK Search DDG]:', e);
     }
 
     try {
@@ -188,10 +122,196 @@ ${attachmentContextText ? '- محتوى المرفقات المتاحة من ا�
         }
       }
     } catch (e) {
-      console.warn('[MK Wiki Error]:', e);
+      console.warn('[MK Search Wiki]:', e);
     }
 
     return results;
+  }
+
+  /**
+   * Main generation method
+   */
+  async generateResponse(params, onChunk) {
+    this.stopGeneration();
+    this.currentAbortController = new AbortController();
+    const signal = this.currentAbortController.signal;
+
+    const {
+      prompt,
+      conversationHistory = [],
+      attachments = [],
+      enableWebSearch = false,
+      model = 'mk-4o',
+      customGpt = null,
+      apiKey = ''
+    } = params;
+
+    // 1. Check if user wants an AI Generated Image
+    if (this.isImageGenerationRequest(prompt)) {
+      onChunk({ type: 'status', message: '🎨 جاري رسم وتوليد الصورة بدقة عالية عبر Flux...' });
+      await new Promise(r => setTimeout(r, 600));
+
+      const imageArtifact = this.generateImageArtifact(prompt);
+      onChunk({
+        type: 'delta',
+        content: `لقد قمت برسم وتوليد الصورة المطلوبة بناءً على وصفك:\n\n**${escapeHtml(imageArtifact.prompt)}**\n\nيمكنك مشاهدتها وتكبيرها أو تنزيلها بأعلى جودة عبر الأزرار أدناه:`
+      });
+
+      onChunk({
+        type: 'done',
+        artifact: imageArtifact,
+        citations: []
+      });
+      this.currentAbortController = null;
+      return;
+    }
+
+    let searchCitations = [];
+    let searchKnowledgeText = '';
+
+    // 2. Smart Autonomous Background Search
+    const shouldSearch = enableWebSearch || this.needsAutonomousSearch(prompt);
+    if (shouldSearch) {
+      onChunk({ type: 'status', message: '🔍 استحضار أحدث المعلومات الحية...' });
+      const searchResults = await this.performWebSearch(prompt);
+      if (searchResults && searchResults.length > 0) {
+        searchCitations = searchResults;
+        searchKnowledgeText = "\n\n[بيانات حية وموثوقة من مصادر الويب المعتمدة]:\n" +
+          searchResults.map((r, i) => `[${i + 1}] العنوان: ${r.title}\nالمعلومة: ${r.snippet}\nالرابط: ${r.url}`).join("\n\n");
+      }
+    }
+
+    // 3. Document Processing & Semantic Vector RAG
+    let attachmentContextText = '';
+    if (window.MK_RAG && window.MK_RAG.documents.size > 0) {
+      onChunk({ type: 'status', message: '📑 بحث متجهي دلالي في المستندات والكتب المرفقة (Vector RAG)...' });
+      const topChunks = window.MK_RAG.search(prompt, 4);
+      if (topChunks && topChunks.length > 0) {
+        attachmentContextText += `\n\n[أدق الاقتباسات والفقرات المطابقة من المستندات المرفقة]:\n` +
+          topChunks.map((c, i) => `[فقرة ${i + 1} - مستند: ${c.docName} - صفحة ${c.pageNumber}]:\n"${c.text}"`).join("\n\n");
+      }
+    } else if (attachments && attachments.length > 0) {
+      onChunk({ type: 'status', message: '📎 قراءة وتحليل المستندات المرفقة...' });
+      attachments.forEach((att) => {
+        if (att.text) {
+          attachmentContextText += `\n\n[محتوى الملف المرفق (${att.name})]:\n${att.text.slice(0, 14000)}\n`;
+        } else if (att.type && att.type.startsWith('image/')) {
+          attachmentContextText += `\n\n[تم إرفاق صورة: ${att.name}]\n`;
+        }
+      });
+    }
+
+    // 4. Custom GPT / Persona Instructions
+    const isReasoningModel = model === 'mk-o1';
+    let basePersona = 'أنت "MK AI"، المساعد الذكي الخارق الأكثر تطوراً وبلاغة وتفاعلاً كشات جي بي تي.';
+
+    if (customGpt && customGpt.system_prompt) {
+      basePersona = `أنت المساعد المتخصص "${customGpt.name}".\nدورك وتعليماتك:\n${customGpt.system_prompt}`;
+    } else if (model === 'mk-coder') {
+      basePersona = 'أنت مهندس برمجيات أول محترف (Senior Software Engineer). كودك فائق الجودة، منظم، مع شروحات وتعليقات توضيحية.';
+    } else if (model === 'mk-creative') {
+      basePersona = 'أنت كاتب ومفكر إبداعي بليغ، أسلوبك ساحر ومتدفق لكتابة القصص والمقالات والمحتوى التسويقي.';
+    }
+
+    const systemPrompt = `${basePersona}
+شخصيتك وأسلوبك:
+- تحدث مع المستخدم بأسلوب إنساني سلس وطبيعي تماماً وبأعلى درجات الذكاء والبلاغة.
+- أجب عن أي سؤال في المحادثة، البرمجة، العلوم، الفلسفة، والحياة اليومية.
+- عند كتابة الأكواد، استخدم Markdown مع ذكر لغة البرمجة دائماً. إذا طلب المستخدم إنشاء صفحة ويب، تطبيق، لوحة تحكم، أو لعبة، اكتب كوداً كاملاً متكاملاً داخل كتلة برمجة \`\`\`html ليتسنى تشغيله في القماش التفاعلي.
+- عند عرض أرقام أو مقارنات أو إحصائيات، نسقها في جداول Markdown واضحة لتظهر رسوم بيانية تفاعلية.
+
+${searchKnowledgeText ? `**توجيه صارم للمعلومات الحية:**
+تم تزويدك بالبيانات الحية التالية. تحدث مع المستخدم بسلاسة وعفوية كأن هذه الحقائق حاضرة في ذهنك بشكل بديهي.
+ممنوع منعاً باتاً أن تقول "بحثت في الإنترنت" أو "وفقاً لمحركات البحث"، بل أجب على سؤاله مباشرة كخبير مطلع واذكر الأرقام والتفاصيل المطلوبة بدقة كجزء طبيعي من حديثك.
+${searchKnowledgeText}` : ''}
+
+${attachmentContextText ? `مرفقات ومستندات المستخدم:\n${attachmentContextText}` : ''}`;
+
+    // o1 Reasoning Mode simulation
+    if (isReasoningModel) {
+      onChunk({ type: 'status', message: '🧠 التفكير المتعمق والاستدلال المنطقي (o1)...' });
+      const reasoningThoughts = this.generateReasoningThoughts(prompt, shouldSearch, attachments.length > 0);
+      for (const thought of reasoningThoughts) {
+        if (signal.aborted) return;
+        onChunk({ type: 'reasoning', delta: thought + '\n' });
+        await new Promise(r => setTimeout(r, 260));
+      }
+    } else {
+      onChunk({ type: 'status', message: '⚡ جاري صياغة الرد...' });
+    }
+
+    // Accumulator for text to detect code artifacts
+    let fullResponseText = '';
+
+    const textChunkInterceptor = (chunk) => {
+      if (chunk.type === 'delta') {
+        fullResponseText += chunk.content;
+      }
+      onChunk(chunk);
+    };
+
+    try {
+      if (apiKey) {
+        await this.generateViaCustomAPI(apiKey, prompt, systemPrompt, conversationHistory, textChunkInterceptor, signal);
+      } else {
+        await this.generateViaDirectStream(prompt, systemPrompt, conversationHistory, model, textChunkInterceptor, signal);
+      }
+    } catch (err) {
+      if (err.name === 'AbortError' || signal.aborted) {
+        console.log('[MK AI] Generation stopped by user.');
+        return;
+      }
+      console.warn('[MK AI] Stream inference failed, using dynamic local synthesis:', err);
+      await this.generateLocalFallback(prompt, searchKnowledgeText, textChunkInterceptor, signal);
+    }
+
+    // 5. Detect Interactive Code Artifacts (HTML/CSS/JS or SVG)
+    const detectedArtifact = this.extractCodeArtifact(fullResponseText);
+
+    onChunk({
+      type: 'done',
+      citations: searchCitations,
+      artifact: detectedArtifact
+    });
+
+    this.currentAbortController = null;
+  }
+
+  /**
+   * Extracts runnable HTML/JS/SVG code into a live Artifact
+   */
+  extractCodeArtifact(text) {
+    if (!text) return null;
+    const htmlMatch = text.match(/```html\s*([\s\S]*?)```/i);
+    if (htmlMatch && htmlMatch[1] && htmlMatch[1].length > 120) {
+      const code = htmlMatch[1].trim();
+      // Extract title if exists
+      const titleMatch = code.match(/<title>(.*?)<\/title>/i);
+      const title = titleMatch ? titleMatch[1] : 'تطبيق ويب تفاعلي';
+      return {
+        type: 'html',
+        title: title,
+        code: code
+      };
+    }
+    const svgMatch = text.match(/```xml\s*(<svg[\s\S]*?<\/svg>)\s*```/i) || text.match(/```svg\s*([\s\S]*?)```/i);
+    if (svgMatch && svgMatch[1]) {
+      return {
+        type: 'svg',
+        title: 'رسمة متجهية SVG',
+        code: svgMatch[1].trim()
+      };
+    }
+    return null;
+  }
+
+  generateReasoningThoughts(prompt, hasSearch, hasAttachments) {
+    return [
+      '1. تفكيك السؤال وتحليل النية الحقيقية وسياق المحادثة بدقة.',
+      hasSearch ? '2. استيعاب البيانات الحية وتدقيق الحقائق والمؤشرات المطلوبة.' : '2. استحضار القواعد المعرفية والمنطقية المناسبة.',
+      hasAttachments ? '3. فحص المستندات والملفات المرفقة واستخراج الإجابة الدقيقة منها.' : '3. هيكلة الرد بأسلوب منطقي متسلسل ومقنع.',
+      '4. صياغة الإجابة النهائية بأسلوب حواري جذاب وبلاغة متقنة مع أمثلة عملية.'
+    ];
   }
 
   async generateViaDirectStream(prompt, systemInstruction, history, model, onChunk, signal) {
@@ -206,7 +326,7 @@ ${attachmentContextText ? '- محتوى المرفقات المتاحة من ا�
 
     messages.push({ role: 'user', content: prompt });
 
-    const targetModel = model === 'mk-coder' ? 'qwen' : (model === 'mk-o1' ? 'openai' : 'openai');
+    const targetModel = model === 'mk-coder' ? 'qwen' : (model === 'mk-creative' ? 'mistral' : 'openai');
 
     const res = await fetch('https://text.pollinations.ai/', {
       method: 'POST',
@@ -282,10 +402,9 @@ ${attachmentContextText ? '- محتوى المرفقات المتاحة من ا�
     }
   }
 
-  async generateLocalFallback(prompt, isReasoning, onChunk, signal) {
-    let reply = `أهلاً بك! أنا **MK AI** المساعد الذكي المتكامل.\n\n`;
-    reply += `لقد استلمت سؤالك: "${prompt}".\n\n`;
-    reply += `يسعدني تقديم الإجابة والمساعدة الفورية في أي جانب تحتاجه. يمكنك طرح أي سؤال برمجي، كتابي، أو علمي، وسأجيبك بأدق التفاصيل!`;
+  async generateLocalFallback(prompt, searchContext, onChunk, signal) {
+    let reply = `أهلاً بك! بخصوص استفسارك: "${prompt}".\n\n`;
+    reply += `يسعدني جداً مناقشة هذا الموضوع معك. يمكنك توجيه أي سؤال تفصيلي أو الاستفسار عن كود أو صياغة فكرة وسأكون معك خطوة بخطوة!`;
     await this.streamWords(reply, onChunk, signal);
   }
 
@@ -296,10 +415,15 @@ ${attachmentContextText ? '- محتوى المرفقات المتاحة من ا�
       const token = (i === 0 ? '' : ' ') + parts[i];
       onChunk({ type: 'delta', content: token });
       if (i % 2 === 0) {
-        await new Promise(r => setTimeout(r, 16));
+        await new Promise(r => setTimeout(r, 15));
       }
     }
   }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 window.MK_AI = new MKAIEngine();
