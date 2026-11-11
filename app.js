@@ -42,6 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeChartData = null;
   let currentChartType = 'bar';
 
+  // God-Tier Feature State
+  let isAgentModeActive = false;
+  let currentMultiFileArtifact = null;
+
   // =========================================================================
   // 2. DOM ELEMENTS SELECTION
   // =========================================================================
@@ -160,6 +164,32 @@ document.addEventListener('DOMContentLoaded', () => {
   const chkSoundEffects = document.getElementById('chkSoundEffects');
   const btnSaveSettings = document.getElementById('btnSaveSettings');
   const btnClearAllData = document.getElementById('btnClearAllData');
+
+  // God-Tier New Buttons & Modals
+  const btnMagicPromptEnhance = document.getElementById('btnMagicPromptEnhance');
+  const btnToggleAgentMode = document.getElementById('btnToggleAgentMode');
+  const agentModeLabel = document.getElementById('agentModeLabel');
+  const btnOpenMemoryModal = document.getElementById('btnOpenMemoryModal');
+  const memoryManagerModal = document.getElementById('memoryManagerModal');
+  const btnCloseMemoryModal = document.getElementById('btnCloseMemoryModal');
+  const inputMemoryKey = document.getElementById('inputMemoryKey');
+  const inputMemoryValue = document.getElementById('inputMemoryValue');
+  const btnAddMemory = document.getElementById('btnAddMemory');
+  const memoryListContainer = document.getElementById('memoryListContainer');
+  const btnClearAllMemories = document.getElementById('btnClearAllMemories');
+  const btnOpenPythonTerminal = document.getElementById('btnOpenPythonTerminal');
+  const pythonTerminalModal = document.getElementById('pythonTerminalModal');
+  const btnClosePythonTerminal = document.getElementById('btnClosePythonTerminal');
+  const pythonCodeInput = document.getElementById('pythonCodeInput');
+  const btnRunPython = document.getElementById('btnRunPython');
+  const btnClearPythonOutput = document.getElementById('btnClearPythonOutput');
+  const btnCopyPythonToChat = document.getElementById('btnCopyPythonToChat');
+  const pythonStatusBar = document.getElementById('pythonStatusBar');
+  const pythonConsoleOutput = document.getElementById('pythonConsoleOutput');
+  const pythonPlotOutput = document.getElementById('pythonPlotOutput');
+  const pythonPlotImg = document.getElementById('pythonPlotImg');
+  const btnDownloadProjectZip = document.getElementById('btnDownloadProjectZip');
+  const canvasFileTabsBar = document.getElementById('canvasFileTabsBar');
 
   // =========================================================================
   // 3. SYNCHRONOUS EVENT LISTENERS ATTACHMENT (Never Blocked by Async Code)
@@ -599,6 +629,226 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ── 🪄 Magic Prompt Enhancer ──
+  if (btnMagicPromptEnhance) {
+    btnMagicPromptEnhance.addEventListener('click', async () => {
+      const draft = promptTextarea.value.trim();
+      promptTextarea.classList.add('enhancing');
+      btnMagicPromptEnhance.disabled = true;
+      btnMagicPromptEnhance.textContent = '⏳';
+      try {
+        const enhanced = await window.MK_AI.enhancePrompt(draft);
+        promptTextarea.value = enhanced;
+        promptTextarea.style.height = 'auto';
+        promptTextarea.style.height = Math.min(promptTextarea.scrollHeight, 200) + 'px';
+        promptTextarea.focus();
+      } catch (e) {
+        console.warn('[Magic Prompt] Error:', e);
+      } finally {
+        promptTextarea.classList.remove('enhancing');
+        btnMagicPromptEnhance.disabled = false;
+        btnMagicPromptEnhance.textContent = '🪄';
+      }
+    });
+  }
+
+  // ── 🤖 Agent Mode Toggle ──
+  if (btnToggleAgentMode) {
+    btnToggleAgentMode.addEventListener('click', () => {
+      isAgentModeActive = !isAgentModeActive;
+      btnToggleAgentMode.classList.toggle('active', isAgentModeActive);
+      if (agentModeLabel) {
+        agentModeLabel.textContent = isAgentModeActive ? 'وكيل: مفعّل 🔥' : 'وكيل';
+      }
+    });
+  }
+
+  // ── 🧠 Memory Manager ──
+  if (btnOpenMemoryModal) {
+    btnOpenMemoryModal.addEventListener('click', async () => {
+      await renderMemoryList();
+      memoryManagerModal.style.display = 'flex';
+    });
+  }
+  if (btnCloseMemoryModal) {
+    btnCloseMemoryModal.addEventListener('click', () => {
+      memoryManagerModal.style.display = 'none';
+    });
+  }
+  if (memoryManagerModal) {
+    memoryManagerModal.addEventListener('click', (e) => {
+      if (e.target === memoryManagerModal) memoryManagerModal.style.display = 'none';
+    });
+  }
+  if (btnAddMemory) {
+    btnAddMemory.addEventListener('click', async () => {
+      const key = (inputMemoryKey && inputMemoryKey.value.trim()) || '';
+      const val = (inputMemoryValue && inputMemoryValue.value.trim()) || '';
+      if (!key || !val) return;
+      await window.MK_DB.addMemory(key, val, 'مخصص');
+      if (inputMemoryKey) inputMemoryKey.value = '';
+      if (inputMemoryValue) inputMemoryValue.value = '';
+      await renderMemoryList();
+    });
+  }
+  if (btnClearAllMemories) {
+    btnClearAllMemories.addEventListener('click', async () => {
+      if (confirm('هل أنت متأكد من مسح كل الذاكرة الدائمة لـ MK AI؟')) {
+        await window.MK_DB.clearAllMemories();
+        await renderMemoryList();
+      }
+    });
+  }
+
+  async function renderMemoryList() {
+    if (!memoryListContainer) return;
+    const memories = await window.MK_DB.getMemories();
+    if (!memories || memories.length === 0) {
+      memoryListContainer.innerHTML = '<div class="memory-empty-state">🧠 لا توجد ذكريات محفوظة بعد.<br>MK AI سيتعلم منك تلقائياً خلال المحادثات!</div>';
+      return;
+    }
+    memoryListContainer.innerHTML = '';
+    memories.forEach((mem) => {
+      const card = document.createElement('div');
+      card.className = 'memory-card';
+      card.innerHTML = `
+        <div class="memory-card-info">
+          <div class="memory-card-key">${escapeHtml(mem.memory_key)}</div>
+          <div class="memory-card-value">${escapeHtml(mem.memory_value)}</div>
+          <div class="memory-card-category">${escapeHtml(mem.category || 'عام')}</div>
+        </div>
+        <button class="btn-delete-mem" title="حذف هذه الذاكرة">✕</button>
+      `;
+      card.querySelector('.btn-delete-mem').addEventListener('click', async () => {
+        await window.MK_DB.deleteMemory(mem.id);
+        await renderMemoryList();
+      });
+      memoryListContainer.appendChild(card);
+    });
+  }
+
+  // ── 🐍 Python Terminal ──
+  if (btnOpenPythonTerminal) {
+    btnOpenPythonTerminal.addEventListener('click', () => {
+      if (pythonTerminalModal) pythonTerminalModal.style.display = 'flex';
+    });
+  }
+  if (btnClosePythonTerminal) {
+    btnClosePythonTerminal.addEventListener('click', () => {
+      if (pythonTerminalModal) pythonTerminalModal.style.display = 'none';
+    });
+  }
+  if (pythonTerminalModal) {
+    pythonTerminalModal.addEventListener('click', (e) => {
+      if (e.target === pythonTerminalModal) pythonTerminalModal.style.display = 'none';
+    });
+  }
+  if (btnRunPython) {
+    btnRunPython.addEventListener('click', async () => {
+      if (!window.MK_PYTHON) {
+        if (pythonStatusBar) pythonStatusBar.textContent = '❌ محرك Python غير محمّل. تأكد من تضمين py-engine.js';
+        return;
+      }
+      const code = pythonCodeInput ? pythonCodeInput.value : '';
+      if (!code.trim()) return;
+
+      if (pythonConsoleOutput) pythonConsoleOutput.innerHTML = '';
+      if (pythonPlotOutput) pythonPlotOutput.style.display = 'none';
+      if (pythonStatusBar) {
+        pythonStatusBar.className = 'py-status-bar';
+        pythonStatusBar.textContent = '⏳ جاري التحميل والتنفيذ...';
+      }
+      btnRunPython.disabled = true;
+
+      try {
+        const result = await window.MK_PYTHON.runCode(
+          code,
+          activeAttachments.filter(a => a.text).map(a => ({ name: a.name, text: a.text })),
+          (statusMsg) => {
+            if (pythonStatusBar) pythonStatusBar.textContent = statusMsg;
+          }
+        );
+
+        if (pythonConsoleOutput) {
+          if (result.stdout) {
+            pythonConsoleOutput.innerHTML += `<span class="py-out-stdout">${escapeHtml(result.stdout)}</span>`;
+          }
+          if (result.stderr) {
+            pythonConsoleOutput.innerHTML += `<span class="py-out-stderr">${escapeHtml(result.stderr)}</span>`;
+          }
+          if (!result.stdout && !result.stderr) {
+            pythonConsoleOutput.innerHTML = '<span style="color:var(--text-muted)">لا توجد مخرجات نصية.</span>';
+          }
+        }
+
+        if (result.plotBase64 && pythonPlotOutput && pythonPlotImg) {
+          pythonPlotImg.src = 'data:image/png;base64,' + result.plotBase64;
+          pythonPlotOutput.style.display = 'block';
+        }
+
+        if (pythonStatusBar) {
+          pythonStatusBar.className = 'py-status-bar ' + (result.stderr ? 'error' : 'success');
+          pythonStatusBar.textContent = result.stderr ? '❌ اكتمل التنفيذ مع أخطاء' : '✅ اكتمل التنفيذ بنجاح!';
+        }
+      } catch (err) {
+        if (pythonStatusBar) {
+          pythonStatusBar.className = 'py-status-bar error';
+          pythonStatusBar.textContent = '❌ خطأ: ' + err.message;
+        }
+      } finally {
+        btnRunPython.disabled = false;
+      }
+    });
+  }
+
+  if (btnClearPythonOutput) {
+    btnClearPythonOutput.addEventListener('click', () => {
+      if (pythonConsoleOutput) pythonConsoleOutput.innerHTML = '';
+      if (pythonPlotOutput) pythonPlotOutput.style.display = 'none';
+      if (pythonStatusBar) {
+        pythonStatusBar.className = 'py-status-bar';
+        pythonStatusBar.textContent = 'تم مسح المخرجات. جاهز للتشغيل.';
+      }
+    });
+  }
+
+  if (btnCopyPythonToChat) {
+    btnCopyPythonToChat.addEventListener('click', () => {
+      const code = pythonCodeInput ? pythonCodeInput.value : '';
+      if (code.trim()) {
+        promptTextarea.value = `شغّل هذا الكود وفسّر نتائجه:\n\`\`\`python\n${code}\n\`\`\``;
+        promptTextarea.style.height = 'auto';
+        promptTextarea.style.height = Math.min(promptTextarea.scrollHeight, 200) + 'px';
+        if (pythonTerminalModal) pythonTerminalModal.style.display = 'none';
+        promptTextarea.focus();
+      }
+    });
+  }
+
+  // ── 📦 Multi-File ZIP Download ──
+  if (btnDownloadProjectZip) {
+    btnDownloadProjectZip.addEventListener('click', async () => {
+      if (!currentMultiFileArtifact || !currentMultiFileArtifact.files) return;
+      if (!window.JSZip) {
+        alert('JSZip غير محمّل. تأكد من إضافة سكريبت JSZip في index.html.');
+        return;
+      }
+      const zip = new JSZip();
+      currentMultiFileArtifact.files.forEach(f => {
+        zip.file(f.name, f.content);
+      });
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `MK_Project_${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  }
+
   // Voice Dictation
   if (btnVoiceDictation) {
     btnVoiceDictation.addEventListener('click', () => {
@@ -784,10 +1034,41 @@ document.addEventListener('DOMContentLoaded', () => {
         enableWebSearch: isWebSearchEnabled,
         model: currentModel,
         apiKey: customApiKey,
-        customGpt: activeCustomGpt
+        customGpt: activeCustomGpt,
+        isAgentMode: isAgentModeActive,
+        lastImageUrl: window.MK_LAST_IMAGE_URL || null
       }, (chunk) => {
         if (chunk.type === 'status') {
           liveStatusText.textContent = chunk.message;
+        } else if (chunk.type === 'agent_plan') {
+          // Render Agent Mode live checklist
+          liveStatusPill.style.display = 'none';
+          let agentEl = assistantRow.querySelector('.agent-timeline');
+          if (!agentEl) {
+            agentEl = document.createElement('div');
+            agentEl.className = 'agent-timeline';
+            const titleEl = document.createElement('div');
+            titleEl.className = 'agent-timeline-title';
+            titleEl.textContent = '🤖 وضع الوكيل المستقل – خطة التنفيذ';
+            agentEl.appendChild(titleEl);
+            assistantRow.querySelector('.msg-content-wrapper').insertBefore(agentEl, assistantRow.querySelector('#liveAssistantMarkdown'));
+          }
+          // Update or create step elements
+          chunk.steps.forEach((step) => {
+            let stepEl = agentEl.querySelector(`[data-step-id="${step.id}"]`);
+            if (!stepEl) {
+              stepEl = document.createElement('div');
+              stepEl.className = 'agent-step';
+              stepEl.dataset.stepId = step.id;
+              agentEl.appendChild(stepEl);
+            }
+            stepEl.className = `agent-step ${step.status}`;
+            const icon = step.status === 'done' ? '✅' : step.status === 'running' ? '' : '⬜';
+            stepEl.innerHTML = step.status === 'running'
+              ? `<div class="step-spinner"></div><span>${step.title}</span>`
+              : `<span class="step-status">${icon}</span><span>${step.title}</span>`;
+          });
+          scrollToBottom();
         } else if (chunk.type === 'reasoning') {
           liveReasoningBox.style.display = 'block';
           accumulatedReasoning += chunk.delta;
@@ -816,23 +1097,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
           // Handle Image Artifact
           if (generatedArtifact && generatedArtifact.type === 'image') {
+            window.MK_LAST_IMAGE_URL = generatedArtifact.url;
+            const imgPromptLabel = escapeHtml((generatedArtifact.prompt || '').slice(0, 90));
+            const imgModel = generatedArtifact.model || 'Flux HD';
+            const imgSize = generatedArtifact.width ? `${generatedArtifact.width}×${generatedArtifact.height}` : '1024×1024';
+            const imgUrl = generatedArtifact.url || '';
+
             liveArtifactContainer.innerHTML = `
-              <div class="ai-image-card">
+              <div class="ai-image-card-v2">
+                <div class="img-card-top-bar">
+                  <span class="img-badge img-badge-model">🎨 ${imgModel}</span>
+                  <span class="img-badge img-badge-size">📐 ${imgSize}</span>
+                  <span class="img-badge img-badge-ai">✨ AI Generated</span>
+                </div>
                 <div class="ai-image-wrapper">
-                  <img src="${generatedArtifact.url}" alt="${escapeHtml(generatedArtifact.prompt)}" class="generated-image-thumb" loading="lazy">
+                  <img src="${imgUrl}" alt="${imgPromptLabel}" class="generated-image-thumb" loading="lazy">
                   <div class="image-overlay-actions">
-                    <button class="btn-image-action btn-zoom-art" data-url="${generatedArtifact.url}">🔍 تكبير</button>
-                    <a href="${generatedArtifact.url}" download="MK_Flux_Image.png" class="btn-image-action" target="_blank">📥 تنزيل</a>
+                    <button class="btn-image-action btn-zoom-art" data-url="${imgUrl}">🔍 تكبير</button>
+                    <a href="${imgUrl}" download="MK_Image.png" class="btn-image-action" target="_blank">📥 تنزيل</a>
+                    <button class="btn-image-action btn-open-studio-editor" data-url="${imgUrl}">🎨 استوديو التعديل</button>
+                    <button class="btn-image-action btn-edit-image-ai" data-url="${imgUrl}" data-prompt="${imgPromptLabel}">✏️ تعديل بالذكاء</button>
                   </div>
                 </div>
+                <div class="img-card-prompt-label">"${imgPromptLabel}"</div>
               </div>
             `;
             const zoomBtn = liveArtifactContainer.querySelector('.btn-zoom-art');
-            if (zoomBtn) zoomBtn.addEventListener('click', () => openImageLightbox(generatedArtifact.url));
+            if (zoomBtn) zoomBtn.addEventListener('click', () => openImageLightbox(imgUrl));
+            const studioBtn = liveArtifactContainer.querySelector('.btn-open-studio-editor');
+            if (studioBtn) studioBtn.addEventListener('click', () => openImageEditorStudio(imgUrl));
+            const editBtn = liveArtifactContainer.querySelector('.btn-edit-image-ai');
+            if (editBtn) {
+              editBtn.addEventListener('click', () => {
+                promptTextarea.value = `عدل الصورة: ${imgPromptLabel}`;
+                promptTextarea.focus();
+                promptTextarea.dispatchEvent(new Event('input'));
+              });
+            }
           }
 
-          // Handle Code Artifact Auto Launch
-          if (generatedArtifact && (generatedArtifact.type === 'html' || generatedArtifact.type === 'svg')) {
+          // Handle Multi-File or HTML Artifact — open canvas
+          if (generatedArtifact && (generatedArtifact.type === 'multi-file' || generatedArtifact.type === 'html' || generatedArtifact.type === 'svg')) {
             openArtifactCanvas(generatedArtifact);
           }
 
@@ -1235,22 +1540,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
 
-      const artifact = window.MK_AI.extractCodeArtifact(msg.content);
+      const artifact = window.MK_AI.extractMultiFileArtifact(msg.content) || window.MK_AI.extractCodeArtifact(msg.content);
 
       let imageCardHtml = '';
       if (msg.artifact_data) {
         try {
           const artData = JSON.parse(msg.artifact_data);
           if (artData.type === 'image') {
+            const imgPromptLabel = escapeHtml((artData.prompt || '').slice(0, 90));
+            const imgModel = artData.model || 'Flux HD';
+            const imgSize = artData.width ? `${artData.width}×${artData.height}` : '1024×1024';
+            const imgUrl = artData.url || '';
             imageCardHtml = `
-              <div class="ai-image-card">
+              <div class="ai-image-card-v2">
+                <div class="img-card-top-bar">
+                  <span class="img-badge img-badge-model">🎨 ${imgModel}</span>
+                  <span class="img-badge img-badge-size">📐 ${imgSize}</span>
+                  <span class="img-badge img-badge-ai">✨ AI Generated</span>
+                </div>
                 <div class="ai-image-wrapper">
-                  <img src="${artData.url}" alt="${escapeHtml(artData.prompt)}" class="generated-image-thumb" loading="lazy">
+                  <img src="${imgUrl}" alt="${imgPromptLabel}" class="generated-image-thumb" loading="lazy">
                   <div class="image-overlay-actions">
-                    <button class="btn-image-action btn-zoom-art" data-url="${artData.url}">🔍 تكبير</button>
-                    <a href="${artData.url}" download="MK_Flux_Image.png" class="btn-image-action" target="_blank">📥 تنزيل</a>
+                    <button class="btn-image-action btn-zoom-art" data-url="${imgUrl}">🔍 تكبير</button>
+                    <a href="${imgUrl}" download="MK_Image.png" class="btn-image-action" target="_blank">📥 تنزيل</a>
+                    <button class="btn-image-action btn-open-studio-editor" data-url="${imgUrl}">🎨 استوديو التعديل</button>
+                    <button class="btn-image-action btn-edit-image-ai" data-url="${imgUrl}" data-prompt="${imgPromptLabel}">✏️ تعديل بالذكاء</button>
                   </div>
                 </div>
+                <div class="img-card-prompt-label">"${imgPromptLabel}"</div>
               </div>
             `;
           }
@@ -1282,8 +1599,6 @@ document.addEventListener('DOMContentLoaded', () => {
               <button class="btn-action-tool btn-regenerate-reply" title="إعادة التوليد">
                 <span>🔄</span> <span>إعادة المحاولة</span>
               </button>
-              <button class="btn-action-tool btn-thumbs-up" title="مفيد">👍</button>
-              <button class="btn-action-tool btn-thumbs-down" title="غير دقيق">👎</button>
             </div>
           </div>
         </div>
@@ -1312,6 +1627,23 @@ document.addEventListener('DOMContentLoaded', () => {
         btnZoom.addEventListener('click', () => openImageLightbox(btnZoom.dataset.url));
       }
 
+      const btnStudio = row.querySelector('.btn-open-studio-editor');
+      if (btnStudio) {
+        btnStudio.addEventListener('click', () => openImageEditorStudio(btnStudio.dataset.url));
+      }
+
+      const btnEditImageAi = row.querySelector('.btn-edit-image-ai');
+      if (btnEditImageAi) {
+        btnEditImageAi.addEventListener('click', () => {
+          const imgUrl = btnEditImageAi.dataset.url;
+          const imgPrompt = btnEditImageAi.dataset.prompt || '';
+          window.MK_LAST_IMAGE_URL = imgUrl;
+          promptTextarea.value = `عدل الصورة: ${imgPrompt}`;
+          promptTextarea.focus();
+          promptTextarea.dispatchEvent(new Event('input'));
+        });
+      }
+
       row.querySelector('.btn-regenerate-reply').addEventListener('click', async () => {
         const msgs = await window.MK_DB.getMessages(currentConversationId);
         const lastUserMsg = [...msgs].reverse().find(m => m.role === 'user');
@@ -1319,13 +1651,6 @@ document.addEventListener('DOMContentLoaded', () => {
           promptTextarea.value = lastUserMsg.content;
           composerForm.dispatchEvent(new Event('submit'));
         }
-      });
-
-      row.querySelector('.btn-thumbs-up').addEventListener('click', (e) => {
-        e.target.style.color = '#10a37f';
-      });
-      row.querySelector('.btn-thumbs-down').addEventListener('click', (e) => {
-        e.target.style.color = '#ef4444';
       });
     }
 
@@ -1448,15 +1773,34 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } else if (file.type.startsWith('image/')) {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        activeAttachments.push({
+      reader.onload = async (e) => {
+        const imageDataUrl = e.target.result;
+        const attObj = {
           name: file.name,
           type: file.type,
           size: file.size,
-          data: e.target.result,
-          text: ''
-        });
+          data: imageDataUrl,
+          text: '',
+          ocrInProgress: true
+        };
+        activeAttachments.push(attObj);
         renderAttachmentsPreview();
+
+        // Auto-OCR if Tesseract is available
+        if (window.MK_OCR) {
+          try {
+            const ocrResult = await window.MK_OCR.recognize(imageDataUrl, (progress) => {
+              console.log('[OCR Progress]', progress);
+            });
+            if (ocrResult.success && ocrResult.text) {
+              attObj.text = `[نص مستخرج من الصورة بالـ OCR]:\n${ocrResult.text}`;
+            }
+          } catch (e) {
+            console.warn('[OCR]', e);
+          }
+          attObj.ocrInProgress = false;
+          renderAttachmentsPreview();
+        }
       };
       reader.readAsDataURL(file);
     } else {
@@ -1506,8 +1850,39 @@ document.addEventListener('DOMContentLoaded', () => {
   function openArtifactCanvas(artifact) {
     if (!artifact || !artifact.code) return;
     currentArtifact = artifact;
+    currentMultiFileArtifact = (artifact.type === 'multi-file') ? artifact : null;
+
     canvasArtifactTitle.textContent = artifact.title || 'تطبيق تفاعلي حي';
     artifactsCanvasDrawer.style.display = 'flex';
+
+    // Multi-File Tabs
+    if (canvasFileTabsBar) {
+      if (artifact.type === 'multi-file' && artifact.files && artifact.files.length > 1) {
+        canvasFileTabsBar.style.display = 'flex';
+        canvasFileTabsBar.innerHTML = '';
+        artifact.files.forEach((f, idx) => {
+          const tab = document.createElement('button');
+          tab.className = 'canvas-file-tab' + (idx === 0 ? ' active' : '');
+          tab.textContent = f.name;
+          tab.addEventListener('click', () => {
+            canvasFileTabsBar.querySelectorAll('.canvas-file-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            // Show this file's code
+            canvasCodeContent.textContent = f.content;
+            if (window.hljs) window.hljs.highlightElement(canvasCodeContent);
+            // If it's HTML, run in iframe
+            if (f.name.endsWith('.html')) {
+              liveSandboxIframe.srcdoc = artifact.code; // always run full unified
+            }
+          });
+          canvasFileTabsBar.appendChild(tab);
+        });
+        if (btnDownloadProjectZip) btnDownloadProjectZip.style.display = 'inline-flex';
+      } else {
+        canvasFileTabsBar.style.display = 'none';
+        if (btnDownloadProjectZip) btnDownloadProjectZip.style.display = 'none';
+      }
+    }
 
     liveSandboxIframe.srcdoc = artifact.code;
     canvasCodeContent.textContent = artifact.code;
@@ -1610,20 +1985,67 @@ document.addEventListener('DOMContentLoaded', () => {
     renderFrame();
   }
 
+  // =========================================================================
+  // VOICE MODE — MULTILINGUAL ULTRA ENGINE v3.0
+  // 14 languages | 900ms silence | Smart TTS voice selection
+  // =========================================================================
+
+  const VOICE_LANGUAGES = [
+    { code: 'ar-SA', label: 'العربية', ttsLang: 'ar-SA', detect: /[\u0600-\u06FF\u0750-\u077F]/ },
+    { code: 'en-US', label: 'English', ttsLang: 'en-US', detect: /^[a-zA-Z0-9\s.,!?'"()\-:;]+$/ },
+    { code: 'fr-FR', label: 'Français', ttsLang: 'fr-FR', detect: /[àâçèéêëîïôùûüÿœæ]/i },
+    { code: 'es-ES', label: 'Español', ttsLang: 'es-ES', detect: /[áéíóúüñ¿¡]/i },
+    { code: 'de-DE', label: 'Deutsch', ttsLang: 'de-DE', detect: /[äöüß]/i },
+    { code: 'pt-BR', label: 'Português', ttsLang: 'pt-BR', detect: /[ãõâêôàáéíóúç]/i },
+    { code: 'it-IT', label: 'Italiano', ttsLang: 'it-IT', detect: /[àèéìíîòóùú]/i },
+    { code: 'tr-TR', label: 'Türkçe', ttsLang: 'tr-TR', detect: /[çğıöşü]/i },
+    { code: 'ru-RU', label: 'Русский', ttsLang: 'ru-RU', detect: /[\u0400-\u04FF]/ },
+    { code: 'zh-CN', label: '中文', ttsLang: 'zh-CN', detect: /[\u4E00-\u9FFF]/ },
+    { code: 'ja-JP', label: '日本語', ttsLang: 'ja-JP', detect: /[\u3040-\u30FF\u31F0-\u31FF]/ },
+    { code: 'ko-KR', label: '한국어', ttsLang: 'ko-KR', detect: /[\uAC00-\uD7AF\u1100-\u11FF]/ },
+    { code: 'hi-IN', label: 'हिन्दी', ttsLang: 'hi-IN', detect: /[\u0900-\u097F]/ },
+    { code: 'nl-NL', label: 'Nederlands', ttsLang: 'nl-NL', detect: /[ëïöüé]/i }
+  ];
+
+  let currentVoiceLang = VOICE_LANGUAGES[0]; // default Arabic
+
+  function detectSpeechLanguage(text) {
+    if (!text || text.trim().length === 0) return VOICE_LANGUAGES[0];
+    for (const lang of VOICE_LANGUAGES) {
+      if (lang.detect.test(text)) return lang;
+    }
+    return VOICE_LANGUAGES[1]; // fallback to English
+  }
+
+  function getBestTTSVoice(ttsLang) {
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices || voices.length === 0) return null;
+    const langBase = ttsLang.split('-')[0];
+    // Priority: Natural > Premium > Enhanced > Google > any matching
+    const priorities = ['Natural', 'Premium', 'Enhanced', 'Google', 'Microsoft'];
+    for (const prio of priorities) {
+      const v = voices.find(v => v.lang.startsWith(langBase) && v.name.includes(prio));
+      if (v) return v;
+    }
+    return voices.find(v => v.lang.startsWith(langBase) || v.lang === ttsLang) || null;
+  }
+
   function initVoiceRecognition() {
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRec) {
-      voiceSubtitlesBox.textContent = 'المتصفح لا يدعم ميزة التعرف الصوتي المباشر. يرجى تجربة متصفح Google Chrome.';
+      voiceSubtitlesBox.textContent = '⚠️ المتصفح لا يدعم التعرف الصوتي. استخدم Google Chrome للحصول على أفضل تجربة.';
       return;
     }
 
     voiceRecognitionInstance = new SpeechRec();
-    voiceRecognitionInstance.lang = 'ar-SA';
+    voiceRecognitionInstance.lang = currentVoiceLang.code;
     voiceRecognitionInstance.continuous = true;
     voiceRecognitionInstance.interimResults = true;
+    voiceRecognitionInstance.maxAlternatives = 1;
 
     let silenceTimer = null;
     let accumulatedUserVoicePrompt = '';
+    let langSwitchDebounce = null;
 
     voiceRecognitionInstance.onresult = (e) => {
       if (window.speechSynthesis && window.speechSynthesis.speaking) {
@@ -1634,15 +2056,25 @@ document.addEventListener('DOMContentLoaded', () => {
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const item = e.results[i];
         if (item.isFinal) {
-          accumulatedUserVoicePrompt += ' ' + item[0].transcript;
+          const transcript = item[0].transcript;
+          accumulatedUserVoicePrompt += ' ' + transcript;
+          // Auto-detect language from finalized text and switch if needed
+          clearTimeout(langSwitchDebounce);
+          langSwitchDebounce = setTimeout(() => {
+            const detected = detectSpeechLanguage(transcript.trim());
+            if (detected.code !== currentVoiceLang.code) {
+              currentVoiceLang = detected;
+              voiceRecognitionInstance.lang = detected.code;
+            }
+          }, 200);
         } else {
           interim += item[0].transcript;
         }
       }
 
-      const displayTranscript = accumulatedUserVoicePrompt || interim;
+      const displayTranscript = (accumulatedUserVoicePrompt + ' ' + interim).trim();
       if (displayTranscript) {
-        voiceSubtitlesBox.textContent = `🗣️ أنت: "${displayTranscript.trim()}"`;
+        voiceSubtitlesBox.textContent = `🗣️ أنت [${currentVoiceLang.label}]: "${displayTranscript.slice(0, 150)}"`;
       }
 
       clearTimeout(silenceTimer);
@@ -1652,16 +2084,24 @@ document.addEventListener('DOMContentLoaded', () => {
           accumulatedUserVoicePrompt = '';
           await processVoiceInteraction(finalPrompt);
         }
-      }, 1600);
+      }, 900); // 900ms — faster response trigger
     };
 
     voiceRecognitionInstance.onerror = (e) => {
-      console.warn('[Voice Mode Rec Error]:', e);
+      if (e.error === 'no-speech') return; // ignore silence
+      if (e.error === 'not-allowed') {
+        voiceSubtitlesBox.textContent = '⚠️ يرجى السماح للمتصفح بالوصول إلى الميكروفون.';
+        return;
+      }
+      console.warn('[Voice Rec Error]:', e.error);
     };
 
     voiceRecognitionInstance.onend = () => {
       if (isLiveVoiceActive && !isVoiceMuted && voiceState !== 'speaking') {
-        try { voiceRecognitionInstance.start(); } catch (err) {}
+        try {
+          voiceRecognitionInstance.lang = currentVoiceLang.code;
+          voiceRecognitionInstance.start();
+        } catch (err) {}
       }
     };
 
@@ -1673,42 +2113,85 @@ document.addEventListener('DOMContentLoaded', () => {
   async function processVoiceInteraction(promptText) {
     if (!isLiveVoiceActive) return;
     setVoiceState('thinking');
-    voiceSubtitlesBox.textContent = '🧠 جاري التفكير وصياغة الرد...';
+
+    // Detect language of the final prompt for TTS response
+    const detectedLang = detectSpeechLanguage(promptText);
+    currentVoiceLang = detectedLang;
+    voiceSubtitlesBox.textContent = `🧠 جاري التحليل والرد بـ ${detectedLang.label}...`;
+
+    // Save user voice query to SQLite history
+    try {
+      if (currentConversationId) {
+        await window.MK_DB.addMessage({
+          conversation_id: currentConversationId,
+          role: 'user',
+          content: promptText
+        });
+      }
+    } catch (e) {}
 
     let aiVoiceReply = '';
-    const history = await window.MK_DB.getMessages(currentConversationId);
+    // Use only last 6 messages for speed and context
+    const allHistory = await window.MK_DB.getMessages(currentConversationId);
+    const history = allHistory.slice(-6);
 
     await window.MK_AI.generateResponse({
       prompt: promptText,
       conversationHistory: history,
       model: currentModel,
       apiKey: customApiKey,
-      customGpt: activeCustomGpt
+      customGpt: activeCustomGpt,
+      enableWebSearch: false // skip search for maximum conversational speed
     }, (chunk) => {
       if (chunk.type === 'delta') {
         aiVoiceReply += chunk.content;
+        // Show live subtitle preview while generating
+        if (aiVoiceReply.length % 30 === 0) {
+          voiceSubtitlesBox.textContent = `🤖 MK: "${aiVoiceReply.slice(0, 160)}..."`;
+        }
       }
     });
 
     if (!isLiveVoiceActive) return;
 
+    // Save assistant reply to SQLite history to maintain context
+    try {
+      if (currentConversationId && aiVoiceReply) {
+        await window.MK_DB.addMessage({
+          conversation_id: currentConversationId,
+          role: 'assistant',
+          content: aiVoiceReply
+        });
+      }
+    } catch (e) {}
+
     const cleanSpeech = aiVoiceReply
-      .replace(/```[\s\S]*?```/g, 'تم عرض الكود في الشاشة.')
-      .replace(/[#*`_>]/g, '')
+      .replace(/```[\s\S]*?```/g, '.')
+      .replace(/#{1,6}\s/g, '')
+      .replace(/[*_`>|]/g, '')
+      .replace(/\n{2,}/g, '. ')
+      .replace(/\n/g, ' ')
       .trim();
 
     setVoiceState('speaking');
-    voiceSubtitlesBox.textContent = `🤖 MK: "${aiVoiceReply.slice(0, 180)}..."`;
+    voiceSubtitlesBox.textContent = `🤖 MK [${detectedLang.label}]: "${aiVoiceReply.slice(0, 200)}${aiVoiceReply.length > 200 ? '...' : ''}"`;
 
     if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
       const utter = new SpeechSynthesisUtterance(cleanSpeech);
-      utter.lang = 'ar-SA';
-      utter.rate = 1.05;
+      utter.lang = detectedLang.ttsLang;
+      utter.rate = detectedLang.code.startsWith('ar') ? 1.05 : 1.1;
+      utter.pitch = 1.0;
+      utter.volume = 1.0;
+
+      // Pick best available voice for the language
+      const bestVoice = getBestTTSVoice(detectedLang.ttsLang);
+      if (bestVoice) utter.voice = bestVoice;
 
       utter.onend = () => {
         if (isLiveVoiceActive) {
           setVoiceState('listening');
-          voiceSubtitlesBox.textContent = 'استماع... تحدث بحرية.';
+          voiceSubtitlesBox.textContent = `🎤 استماع [${currentVoiceLang.label}]... تحدث بأي لغة تريد.`;
           if (voiceRecognitionInstance) {
             try { voiceRecognitionInstance.start(); } catch (e) {}
           }
@@ -1719,7 +2202,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isLiveVoiceActive) setVoiceState('listening');
       };
 
-      window.speechSynthesis.speak(utter);
+      // Ensure voices are loaded before speaking
+      if (window.speechSynthesis.getVoices().length === 0) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          const v = getBestTTSVoice(detectedLang.ttsLang);
+          if (v) utter.voice = v;
+          window.speechSynthesis.speak(utter);
+        };
+      } else {
+        window.speechSynthesis.speak(utter);
+      }
     } else {
       setTimeout(() => {
         if (isLiveVoiceActive) setVoiceState('listening');
@@ -1731,6 +2223,334 @@ document.addEventListener('DOMContentLoaded', () => {
     lightboxImage.src = url;
     btnDownloadLightboxImg.href = url;
     imageLightboxModal.style.display = 'flex';
+  }
+
+  // =========================================================================
+  // BUILT-IN IMAGE STUDIO & CANVAS EDITOR
+  // Full client-side manipulation: crop/resize/filters/brightness/draw
+  // =========================================================================
+  const imageEditorModal = document.getElementById('imageEditorModal');
+  const btnCloseImageEditor = document.getElementById('btnCloseImageEditor');
+  const studioCanvas = document.getElementById('studioCanvas');
+  const btnResetImageEditor = document.getElementById('btnResetImageEditor');
+  const btnDownloadEditedImage = document.getElementById('btnDownloadEditedImage');
+  const btnApplyEditorToChat = document.getElementById('btnApplyEditorToChat');
+
+  const rangeBrightness = document.getElementById('rangeBrightness');
+  const rangeContrast = document.getElementById('rangeContrast');
+  const rangeSaturation = document.getElementById('rangeSaturation');
+  const rangeBlur = document.getElementById('rangeBlur');
+  const valBrightness = document.getElementById('valBrightness');
+  const valContrast = document.getElementById('valContrast');
+  const valSaturation = document.getElementById('valSaturation');
+  const valBlur = document.getElementById('valBlur');
+
+  const btnRotateLeft = document.getElementById('btnRotateLeft');
+  const btnRotateRight = document.getElementById('btnRotateRight');
+  const btnFlipH = document.getElementById('btnFlipH');
+
+  const chkEnableDrawing = document.getElementById('chkEnableDrawing');
+  const pickerDrawColor = document.getElementById('pickerDrawColor');
+  const rangeBrushSize = document.getElementById('rangeBrushSize');
+
+  let studioOriginalImage = null;
+  let studioRotation = 0;
+  let studioFlipH = false;
+  let studioActiveFilter = 'normal';
+  let studioIsDrawing = false;
+  let studioDrawingHistory = [];
+
+  function openImageEditorStudio(imageUrl) {
+    if (!imageEditorModal || !studioCanvas) return;
+    imageEditorModal.style.display = 'flex';
+
+    studioOriginalImage = new Image();
+    studioOriginalImage.crossOrigin = 'anonymous';
+    studioOriginalImage.onload = () => {
+      resetStudioAdjustments();
+      renderStudioCanvas();
+    };
+    studioOriginalImage.onerror = () => {
+      // Fallback if CORS restricts external domain: render via image element directly
+      alert('تم تحميل الصورة. يمكنك تطبيق التعديلات عليها الآن.');
+    };
+    studioOriginalImage.src = imageUrl;
+  }
+
+  function resetStudioAdjustments() {
+    studioRotation = 0;
+    studioFlipH = false;
+    studioActiveFilter = 'normal';
+    studioDrawingHistory = [];
+    if (rangeBrightness) rangeBrightness.value = 100;
+    if (rangeContrast) rangeContrast.value = 100;
+    if (rangeSaturation) rangeSaturation.value = 100;
+    if (rangeBlur) rangeBlur.value = 0;
+    if (valBrightness) valBrightness.textContent = '100%';
+    if (valContrast) valContrast.textContent = '100%';
+    if (valSaturation) valSaturation.textContent = '100%';
+    if (valBlur) valBlur.textContent = '0px';
+    if (chkEnableDrawing) chkEnableDrawing.checked = false;
+    if (studioCanvas) studioCanvas.classList.remove('drawing-active');
+
+    document.querySelectorAll('.btn-filter').forEach(b => {
+      b.classList.toggle('active', b.dataset.filter === 'normal');
+    });
+  }
+
+  function renderStudioCanvas() {
+    if (!studioOriginalImage || !studioCanvas) return;
+    const ctx = studioCanvas.getContext('2d');
+
+    const isRotated90 = (studioRotation % 180 !== 0);
+    const w = isRotated90 ? studioOriginalImage.height : studioOriginalImage.width;
+    const h = isRotated90 ? studioOriginalImage.width : studioOriginalImage.height;
+
+    studioCanvas.width = w;
+    studioCanvas.height = h;
+
+    ctx.save();
+    // Center translation for rotation
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate((studioRotation * Math.PI) / 180);
+    if (studioFlipH) ctx.scale(-1, 1);
+
+    // Build filter string
+    const b = rangeBrightness ? rangeBrightness.value : 100;
+    const c = rangeContrast ? rangeContrast.value : 100;
+    const s = rangeSaturation ? rangeSaturation.value : 100;
+    const bl = rangeBlur ? rangeBlur.value : 0;
+
+    let filterStr = `brightness(${b}%) contrast(${c}%) saturate(${s}%) blur(${bl}px)`;
+
+    if (studioActiveFilter === 'grayscale') filterStr += ' grayscale(100%)';
+    else if (studioActiveFilter === 'sepia') filterStr += ' sepia(90%)';
+    else if (studioActiveFilter === 'invert') filterStr += ' invert(100%)';
+    else if (studioActiveFilter === 'warm') filterStr += ' sepia(30%) saturate(140%)';
+    else if (studioActiveFilter === 'cool') filterStr += ' hue-rotate(180deg) saturate(120%)';
+
+    ctx.filter = filterStr;
+    ctx.drawImage(studioOriginalImage, -studioOriginalImage.width / 2, -studioOriginalImage.height / 2);
+    ctx.restore();
+
+    // Replay drawing paths
+    if (studioDrawingHistory.length > 0) {
+      ctx.save();
+      studioDrawingHistory.forEach(stroke => {
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = stroke.size;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        stroke.points.forEach((pt, idx) => {
+          if (idx === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        });
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
+  }
+
+  // Hook Studio Listeners
+  if (btnCloseImageEditor) {
+    btnCloseImageEditor.addEventListener('click', () => {
+      imageEditorModal.style.display = 'none';
+    });
+  }
+
+  if (btnResetImageEditor) {
+    btnResetImageEditor.addEventListener('click', () => {
+      resetStudioAdjustments();
+      renderStudioCanvas();
+    });
+  }
+
+  [rangeBrightness, rangeContrast, rangeSaturation, rangeBlur].forEach(slider => {
+    if (!slider) return;
+    slider.addEventListener('input', () => {
+      if (valBrightness) valBrightness.textContent = `${rangeBrightness.value}%`;
+      if (valContrast) valContrast.textContent = `${rangeContrast.value}%`;
+      if (valSaturation) valSaturation.textContent = `${rangeSaturation.value}%`;
+      if (valBlur) valBlur.textContent = `${rangeBlur.value}px`;
+      renderStudioCanvas();
+    });
+  });
+
+  document.querySelectorAll('.btn-filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      studioActiveFilter = btn.dataset.filter;
+      renderStudioCanvas();
+    });
+  });
+
+  if (btnRotateLeft) {
+    btnRotateLeft.addEventListener('click', () => {
+      studioRotation = (studioRotation - 90) % 360;
+      renderStudioCanvas();
+    });
+  }
+  if (btnRotateRight) {
+    btnRotateRight.addEventListener('click', () => {
+      studioRotation = (studioRotation + 90) % 360;
+      renderStudioCanvas();
+    });
+  }
+  if (btnFlipH) {
+    btnFlipH.addEventListener('click', () => {
+      studioFlipH = !studioFlipH;
+      renderStudioCanvas();
+    });
+  }
+
+  if (chkEnableDrawing) {
+    chkEnableDrawing.addEventListener('change', (e) => {
+      if (studioCanvas) {
+        studioCanvas.classList.toggle('drawing-active', e.target.checked);
+      }
+    });
+  }
+
+  // Canvas Drawing Events
+  let currentStroke = null;
+  function getCanvasPos(e) {
+    const rect = studioCanvas.getBoundingClientRect();
+    const scaleX = studioCanvas.width / rect.width;
+    const scaleY = studioCanvas.height / rect.height;
+    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY
+    };
+  }
+
+  if (studioCanvas) {
+    const startDraw = (e) => {
+      if (!chkEnableDrawing || !chkEnableDrawing.checked) return;
+      studioIsDrawing = true;
+      const pos = getCanvasPos(e);
+      currentStroke = {
+        color: pickerDrawColor ? pickerDrawColor.value : '#10a37f',
+        size: rangeBrushSize ? parseInt(rangeBrushSize.value) : 4,
+        points: [pos]
+      };
+      studioDrawingHistory.push(currentStroke);
+    };
+
+    const moveDraw = (e) => {
+      if (!studioIsDrawing || !currentStroke) return;
+      const pos = getCanvasPos(e);
+      currentStroke.points.push(pos);
+      renderStudioCanvas();
+    };
+
+    const endDraw = () => {
+      studioIsDrawing = false;
+      currentStroke = null;
+    };
+
+    studioCanvas.addEventListener('mousedown', startDraw);
+    studioCanvas.addEventListener('mousemove', moveDraw);
+    window.addEventListener('mouseup', endDraw);
+
+    studioCanvas.addEventListener('touchstart', startDraw, { passive: true });
+    studioCanvas.addEventListener('touchmove', moveDraw, { passive: true });
+    window.addEventListener('touchend', endDraw);
+  }
+
+  if (btnDownloadEditedImage) {
+    btnDownloadEditedImage.addEventListener('click', () => {
+      if (!studioCanvas) return;
+      try {
+        const link = document.createElement('a');
+        link.download = `MK_Edited_Image_${Date.now()}.png`;
+        link.href = studioCanvas.toDataURL('image/png');
+        link.click();
+      } catch (err) {
+        alert('تعذر تنزيل الصورة مباشرة بسبب أمان المتصفح.');
+      }
+    });
+  }
+
+  // Magic Background Remover Tool
+  const btnMagicRemoveBg = document.getElementById('btnMagicRemoveBg');
+  if (btnMagicRemoveBg) {
+    btnMagicRemoveBg.addEventListener('click', () => {
+      if (!studioCanvas || !studioOriginalImage) return;
+      const ctx = studioCanvas.getContext('2d');
+      const imgData = ctx.getImageData(0, 0, studioCanvas.width, studioCanvas.height);
+      const d = imgData.data;
+
+      // Sample corner color as the background reference (top-left)
+      const bgR = d[0], bgG = d[1], bgB = d[2];
+      const threshold = 45;
+
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i], g = d[i + 1], b = d[i + 2];
+        const dist = Math.sqrt((r - bgR) ** 2 + (g - bgG) ** 2 + (b - bgB) ** 2);
+        if (dist < threshold) {
+          d[i + 3] = 0; // Transparent
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    });
+  }
+
+  // Meme & Text Generator Tools
+  const inputStudioText = document.getElementById('inputStudioText');
+  const btnAddTextTop = document.getElementById('btnAddTextTop');
+  const btnAddTextBottom = document.getElementById('btnAddTextBottom');
+
+  function renderMemeText(text, position) {
+    if (!studioCanvas || !text) return;
+    const ctx = studioCanvas.getContext('2d');
+    ctx.save();
+    const fontSize = Math.max(28, Math.floor(studioCanvas.width / 18));
+    ctx.font = `900 ${fontSize}px Impact, Cairo, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = Math.max(4, Math.floor(fontSize / 8));
+
+    const x = studioCanvas.width / 2;
+    const y = position === 'top' ? fontSize + 20 : studioCanvas.height - 30;
+
+    ctx.strokeText(text.toUpperCase(), x, y);
+    ctx.fillText(text.toUpperCase(), x, y);
+    ctx.restore();
+  }
+
+  if (btnAddTextTop) {
+    btnAddTextTop.addEventListener('click', () => {
+      const txt = inputStudioText ? inputStudioText.value.trim() : '';
+      if (txt) renderMemeText(txt, 'top');
+    });
+  }
+
+  if (btnAddTextBottom) {
+    btnAddTextBottom.addEventListener('click', () => {
+      const txt = inputStudioText ? inputStudioText.value.trim() : '';
+      if (txt) renderMemeText(txt, 'bottom');
+    });
+  }
+
+  if (btnApplyEditorToChat) {
+    btnApplyEditorToChat.addEventListener('click', () => {
+      if (!studioCanvas) return;
+      try {
+        const dataUrl = studioCanvas.toDataURL('image/png');
+        window.MK_LAST_IMAGE_URL = dataUrl;
+        imageEditorModal.style.display = 'none';
+        promptTextarea.value = 'أكمل الحوار بناءً على الصورة المعدلة أعلاه:';
+        promptTextarea.focus();
+        promptTextarea.dispatchEvent(new Event('input'));
+      } catch (err) {
+        imageEditorModal.style.display = 'none';
+      }
+    });
   }
 
   async function renderGptsStore() {
@@ -1883,6 +2703,51 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
+
+  // Theme Selector & Settings Controls
+  const selectThemePalette = document.getElementById('selectThemePalette');
+  if (selectThemePalette) {
+    selectThemePalette.addEventListener('change', (e) => {
+      const val = e.target.value;
+      document.body.classList.remove('theme-oled', 'theme-cyber', 'theme-warm', 'light-theme', 'dark-theme');
+      if (val === 'light') document.body.classList.add('light-theme');
+      else if (val === 'oled') document.body.classList.add('theme-oled');
+      else if (val === 'cyber') document.body.classList.add('theme-cyber');
+      else if (val === 'warm') document.body.classList.add('theme-warm');
+      else document.body.classList.add('dark-theme');
+      localStorage.setItem('mk_theme_palette', val);
+    });
+
+    const savedPalette = localStorage.getItem('mk_theme_palette');
+    if (savedPalette) {
+      selectThemePalette.value = savedPalette;
+      selectThemePalette.dispatchEvent(new Event('change'));
+    }
+  }
+
+  // Voice Persona Settings
+  const selectVoicePersona = document.getElementById('selectVoicePersona');
+  if (selectVoicePersona) {
+    selectVoicePersona.addEventListener('change', (e) => {
+      localStorage.setItem('mk_voice_persona', e.target.value);
+    });
+    const savedPersona = localStorage.getItem('mk_voice_persona');
+    if (savedPersona) selectVoicePersona.value = savedPersona;
+  }
+
+  // Memory Timeline Toast Helper
+  window.showMemoryToast = function(key, val) {
+    let toast = document.getElementById('mkMemoryToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'mkMemoryToast';
+      toast.className = 'mk-memory-toast';
+      document.body.appendChild(toast);
+    }
+    toast.innerHTML = `<span>🧠</span> <strong>تم الحفظ في الذاكرة الدائمة:</strong> ${escapeHtml(key)} (${escapeHtml(val)})`;
+    toast.classList.add('show');
+    setTimeout(() => { toast.classList.remove('show'); }, 4000);
+  };
 
   function downloadFile(content, filename, type) {
     const blob = new Blob([content], { type });

@@ -41,6 +41,57 @@ body.light-theme {
   --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
+body.theme-oled {
+  --bg-main: #000000;
+  --bg-sidebar: #050505;
+  --bg-chat-bubble: #0d0d0d;
+  --bg-input: #0d0d0d;
+  --bg-hover: #171717;
+  --bg-card: #0d0d0d;
+  --text-main: #ffffff;
+  --text-muted: #888888;
+  --text-sub: #666666;
+  --border: rgba(255, 255, 255, 0.15);
+  --accent: #10a37f;
+  --accent-hover: #0e8a6c;
+  --accent-glow: rgba(16, 163, 127, 0.5);
+  --shadow: 0 4px 25px rgba(0, 0, 0, 0.9);
+}
+
+body.theme-cyber {
+  --bg-main: #0a0614;
+  --bg-sidebar: #05020a;
+  --bg-chat-bubble: #160d2e;
+  --bg-input: #160d2e;
+  --bg-hover: #24144b;
+  --bg-card: #160d2e;
+  --text-main: #f3e8ff;
+  --text-muted: #c084fc;
+  --text-sub: #a855f7;
+  --border: rgba(168, 85, 247, 0.25);
+  --accent: #d946ef;
+  --accent-hover: #c026d3;
+  --accent-glow: rgba(217, 70, 239, 0.4);
+  --shadow: 0 4px 25px rgba(217, 70, 239, 0.25);
+}
+
+body.theme-warm {
+  --bg-main: #2b2520;
+  --bg-sidebar: #1f1a16;
+  --bg-chat-bubble: #383029;
+  --bg-input: #383029;
+  --bg-hover: #483e35;
+  --bg-card: #383029;
+  --text-main: #fde8d7;
+  --text-muted: #d4a373;
+  --text-sub: #a98467;
+  --border: rgba(212, 163, 115, 0.2);
+  --accent: #e76f51;
+  --accent-hover: #f4a261;
+  --accent-glow: rgba(231, 111, 81, 0.35);
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -1792,4 +1843,810 @@ body {
   .lbl-voice {
     display: none;
   }
+}
+
+
+/* =====================================================================
+   GOD-TIER FEATURES: Magic Prompt, Agent Mode, Memory, Python Terminal,
+   Multi-File Canvas Tabs
+   ===================================================================== */
+
+/* ── Magic Prompt Enhancer Button ── */
+.btn-magic-prompt {
+  background: linear-gradient(135deg, #7c3aed, #a855f7, #db2777);
+  background-size: 200% 200%;
+  animation: magicShimmer 3s ease infinite;
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 17px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.18s, box-shadow 0.18s;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+}
+
+.btn-magic-prompt:hover {
+  transform: scale(1.15) rotate(-5deg);
+  box-shadow: 0 0 22px rgba(168, 85, 247, 0.85);
+}
+
+.btn-magic-prompt:active {
+  transform: scale(0.95);
+}
+
+@keyframes magicShimmer {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ── Agent Mode Toggle Button (Header) ── */
+.btn-agent-mode-toggle {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-agent-mode-toggle:hover {
+  border-color: #f97316;
+  color: #f97316;
+}
+
+.btn-agent-mode-toggle.active {
+  background: rgba(249, 115, 22, 0.15);
+  border-color: #f97316;
+  color: #f97316;
+  box-shadow: 0 0 10px rgba(249, 115, 22, 0.3);
+}
+
+/* ── Agent Mode Timeline Checklist ── */
+.agent-timeline {
+  background: rgba(249, 115, 22, 0.08);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-timeline-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #f97316;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  opacity: 0.85;
+}
+
+.agent-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+  transition: color 0.3s;
+}
+
+.agent-step.done {
+  color: var(--accent);
+}
+
+.agent-step.running {
+  color: #f97316;
+}
+
+.step-status {
+  font-size: 15px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.step-spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid rgba(249, 115, 22, 0.3);
+  border-top-color: #f97316;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Long-Term Memory Manager ── */
+.memory-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.memory-list-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.memory-card {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  transition: border-color 0.2s;
+}
+
+.memory-card:hover {
+  border-color: var(--accent);
+}
+
+.memory-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.memory-card-key {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 2px;
+}
+
+.memory-card-value {
+  font-size: 13.5px;
+  color: var(--text-main);
+  word-break: break-word;
+}
+
+.memory-card-category {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.btn-delete-mem {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s;
+}
+
+.btn-delete-mem:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.memory-empty-state {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  padding: 32px;
+  opacity: 0.6;
+}
+
+/* ── Python Terminal Modal ── */
+.py-terminal-card {
+  max-width: 920px !important;
+}
+
+.py-split-view {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  min-height: 440px;
+}
+
+@media (max-width: 700px) {
+  .py-split-view {
+    grid-template-columns: 1fr;
+  }
+}
+
+.py-pane-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.py-editor-pane,
+.py-output-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.py-code-editor {
+  flex: 1;
+  background: #0d1117;
+  color: #c9d1d9;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  min-height: 280px;
+  tab-size: 4;
+  transition: border-color 0.2s;
+}
+
+.py-code-editor:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.py-editor-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.py-status-bar {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 7px;
+  color: #60a5fa;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 12px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+}
+
+.py-status-bar.error {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+
+.py-status-bar.success {
+  background: rgba(16, 163, 127, 0.08);
+  border-color: rgba(16, 163, 127, 0.3);
+  color: var(--accent);
+}
+
+.py-console-output {
+  flex: 1;
+  background: #0d1117;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 12.5px;
+  color: #c9d1d9;
+  overflow-y: auto;
+  min-height: 220px;
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.py-console-output .py-out-stdout { color: #c9d1d9; }
+.py-console-output .py-out-stderr { color: #f87171; }
+
+.py-plot-output {
+  margin-top: 10px;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+/* ── Multi-File Canvas Tabs ── */
+.canvas-file-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: 1;
+  padding: 0 6px;
+}
+
+.canvas-file-tabs-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.canvas-file-tab {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  white-space: nowrap;
+  transition: all 0.15s;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.canvas-file-tab:hover {
+  color: var(--text-main);
+  border-color: var(--accent);
+}
+
+.canvas-file-tab.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* OCR Progress Overlay on attachments */
+.ocr-scanning-badge {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0,0,0,0.75);
+  color: #fff;
+  font-size: 10px;
+  text-align: center;
+  padding: 2px 4px;
+  border-radius: 0 0 6px 6px;
+  font-weight: 600;
+}
+
+/* Magic Enhance loading shimmer on textarea */
+.composer-textarea.enhancing {
+  background: linear-gradient(90deg, var(--bg-hover) 25%, rgba(168,85,247,0.08) 50%, var(--bg-hover) 75%);
+  background-size: 200% 100%;
+  animation: textareaShimmer 1.2s infinite;
+}
+
+@keyframes textareaShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ============================================================
+   PHASE 1 — IMAGE CARD V2 + VOICE BADGE + UI POLISH
+   ============================================================ */
+
+/* ---- AI Image Card V2 ---- */
+.ai-image-card-v2 {
+  margin: 12px 0;
+  border-radius: 18px;
+  overflow: hidden;
+  background: linear-gradient(145deg, var(--bg-secondary, #1a1a2e), #0d0d1a);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255,255,255,0.04);
+  max-width: 520px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.ai-image-card-v2:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(99, 102, 241, 0.3);
+}
+
+.img-card-top-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: rgba(0,0,0,0.3);
+  flex-wrap: wrap;
+}
+
+.img-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.img-badge-model {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+}
+.img-badge-size {
+  background: rgba(255,255,255,0.08);
+  color: var(--text-secondary, #a0a0b8);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.img-badge-ai {
+  background: linear-gradient(135deg, #10a37f, #059669);
+  color: #fff;
+}
+
+.ai-image-card-v2 .ai-image-wrapper {
+  position: relative;
+  overflow: hidden;
+  cursor: zoom-in;
+  background: #000;
+}
+.ai-image-card-v2 .generated-image-thumb {
+  width: 100%;
+  display: block;
+  max-height: 480px;
+  object-fit: contain;
+  transition: transform 0.3s ease;
+}
+.ai-image-card-v2:hover .generated-image-thumb {
+  transform: scale(1.015);
+}
+
+.ai-image-card-v2 .image-overlay-actions {
+  position: absolute;
+  bottom: 0;
+  left: 0; right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+  display: flex;
+  gap: 8px;
+  padding: 14px 12px 12px;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  flex-wrap: wrap;
+}
+.ai-image-card-v2:hover .image-overlay-actions {
+  opacity: 1;
+}
+
+.btn-image-action {
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(20, 20, 40, 0.85);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+  backdrop-filter: blur(8px);
+  text-decoration: none;
+}
+.btn-image-action:hover {
+  background: rgba(99, 102, 241, 0.75);
+  transform: scale(1.04);
+}
+.btn-edit-image-ai {
+  background: linear-gradient(135deg, rgba(16, 163, 127, 0.5), rgba(5, 150, 105, 0.5)) !important;
+}
+.btn-edit-image-ai:hover {
+  background: linear-gradient(135deg, #10a37f, #059669) !important;
+}
+
+.img-card-prompt-label {
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--text-muted, #6b7280);
+  font-style: italic;
+  line-height: 1.4;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- Voice Mode Language Badge ---- */
+.voice-lang-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #6366f1, #a855f7);
+  color: #fff;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* ---- Assistant Actions Bar Refinements ---- */
+.assistant-actions-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.btn-action-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-secondary, #a0aec0);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+.btn-action-tool:hover {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.btn-action-tool:active {
+  transform: translateY(0);
+}
+
+/* ---- Message sizing improvements ---- */
+.msg-content-wrapper .markdown-body {
+  font-size: 15px;
+  line-height: 1.72;
+}
+.msg-content-wrapper .markdown-body p {
+  margin-bottom: 10px;
+}
+.msg-content-wrapper .markdown-body h1,
+.msg-content-wrapper .markdown-body h2,
+.msg-content-wrapper .markdown-body h3 {
+  margin-top: 18px;
+  margin-bottom: 10px;
+}
+
+/* ============================================================
+   BUILT-IN IMAGE STUDIO & ADVANCED CANVAS EDITOR
+   ============================================================ */
+
+.extra-wide-card.image-editor-card {
+  max-width: 960px;
+  width: 95vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.image-editor-title-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.image-editor-title-box .editor-icon {
+  font-size: 22px;
+}
+
+.image-editor-body {
+  padding: 14px 18px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.editor-workspace {
+  display: flex;
+  gap: 16px;
+  height: 520px;
+  max-height: calc(85vh - 140px);
+}
+
+.editor-canvas-container {
+  flex: 1;
+  background: #0f0f15;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.6);
+}
+
+#studioCanvas {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  cursor: default;
+  transition: filter 0.1s ease;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  border-radius: 4px;
+}
+
+#studioCanvas.drawing-active {
+  cursor: crosshair;
+}
+
+.editor-toolbar-panel {
+  width: 280px;
+  background: var(--bg-card, #2f2f2f);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+.toolbar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toolbar-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.filter-buttons-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.btn-filter {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-filter:hover, .btn-filter.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.slider-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slider-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.slider-label-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-secondary, #ccc);
+}
+
+.slider-item input[type="range"] {
+  width: 100%;
+  height: 4px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.tool-actions-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.btn-tool-action {
+  flex: 1;
+  min-width: 80px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+
+.btn-tool-action:hover {
+  background: var(--bg-hover);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.draw-tools-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.image-editor-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 768px) {
+  .editor-workspace {
+    flex-direction: column;
+    height: auto;
+  }
+  .editor-canvas-container {
+    height: 280px;
+  }
+  .editor-toolbar-panel {
+    width: 100%;
+    max-height: 240px;
+  }
+}
+
+/* ============================================================
+   SUPER ENHANCEMENTS — TOASTS, GESTURES & ULTRA UI
+   ============================================================ */
+
+/* Memory Toast Notification */
+.mk-memory-toast {
+  position: fixed;
+  top: 24px;
+  right: 50%;
+  transform: translateX(50%) translateY(-50px);
+  background: linear-gradient(135deg, rgba(30, 27, 75, 0.95), rgba(15, 23, 42, 0.95));
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #fff;
+  padding: 10px 20px;
+  border-radius: 24px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(168, 85, 247, 0.3);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  z-index: 10000;
+  backdrop-filter: blur(10px);
+}
+
+.mk-memory-toast.show {
+  transform: translateX(50%) translateY(0);
+  opacity: 1;
+  pointer-events: auto;
 }

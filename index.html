@@ -34,6 +34,9 @@
   <!-- Chart.js for Interactive Data Visualizer -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 
+  <!-- JSZip for Multi-File Project ZIP Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
   <!-- Application Styles -->
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -75,6 +78,18 @@
 
       <!-- Bottom System Actions -->
       <div class="sidebar-bottom">
+        <!-- Memory Manager -->
+        <button class="sidebar-action-btn" id="btnOpenMemoryModal">
+          <span class="icon">🧠</span>
+          <span>ذاكرة MK AI الدائمة</span>
+        </button>
+
+        <!-- Python Terminal -->
+        <button class="sidebar-action-btn" id="btnOpenPythonTerminal">
+          <span class="icon">🐍</span>
+          <span>مفسر Python (WASM)</span>
+        </button>
+
         <!-- Custom GPTs Store -->
         <button class="sidebar-action-btn" id="btnOpenGptsStore">
           <span class="icon">🧩</span>
@@ -166,6 +181,11 @@
         </div>
 
         <div class="nav-right">
+          <!-- Agent Mode Toggle -->
+          <button class="btn-agent-mode-toggle" id="btnToggleAgentMode" title="وضع الوكيل المستقل (Agent Mode) - تخطيط وتنفيذ تلقائي">
+            🤖 <span id="agentModeLabel">وكيل</span>
+          </button>
+
           <!-- Real-time Voice Call Button -->
           <button class="btn-voice-header" id="btnLaunchLiveVoice" title="بدء محادثة صوتية حية (مثل ChatGPT Voice)">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -256,6 +276,11 @@
             </svg>
           </button>
 
+          <!-- Magic Prompt Enhancer Button -->
+          <button type="button" class="btn-magic-prompt" id="btnMagicPromptEnhance" title="تحسين البرومبت سحرياً 🪄">
+            🪄
+          </button>
+
           <!-- Image Generation Quick Action -->
           <button type="button" class="btn-composer-icon" id="btnQuickImageGen" title="توليد صورة بالذكاء الاصطناعي (Flux)">
             🎨
@@ -297,6 +322,11 @@
           <span class="canvas-title-text" id="canvasArtifactTitle">تطبيق ويب تفاعلي</span>
         </div>
 
+        <!-- Multi-File Tabs Bar -->
+        <div class="canvas-file-tabs-bar" id="canvasFileTabsBar" style="display: none;">
+          <!-- Tabs rendered dynamically -->
+        </div>
+
         <div class="canvas-viewport-switcher">
           <button class="btn-vp-tab active" data-vp="desktop" title="عرض سطح المكتب">🖥️</button>
           <button class="btn-vp-tab" data-vp="tablet" title="عرض الجهاز اللوحي (768px)">📱</button>
@@ -304,6 +334,7 @@
         </div>
 
         <div class="canvas-actions">
+          <button class="btn-canvas-action" id="btnDownloadProjectZip" title="تحميل المشروع كاملاً كـ ZIP" style="display:none;">📦 ZIP</button>
           <button class="btn-canvas-action" id="btnDownloadArtifact" title="تحميل ملف المشروع (HTML)">📥 تحميل</button>
           <button class="btn-canvas-action" id="btnToggleCodeView" title="عرض الكود البرمجي">💻 كود</button>
           <button class="btn-canvas-action" id="btnCloseArtifactCanvas" title="إغلاق القماش">✕</button>
@@ -506,6 +537,27 @@
         </div>
 
         <div class="setting-row">
+          <label class="setting-title">سمة المظهر (Color Theme):</label>
+          <select id="selectThemePalette" class="modal-select">
+            <option value="dark" selected>🌙 Dark Default (الوضع الليلي الكلاسيكي)</option>
+            <option value="oled">🖤 OLED Pitch Black (سواد نقي فائق لتوفير البطارية)</option>
+            <option value="cyber">🔮 Cyberpunk Neon (ألوان نيون بنفسجية مستقبلية)</option>
+            <option value="warm">☕ Solarized Warm (بني دافئ مريح للعين أثناء القراءة)</option>
+            <option value="light">☀️ Light Theme (الوضع النهاري المشرق)</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <label class="setting-title">صوت وشخصية المساعد الصوتي (Voice Persona):</label>
+          <select id="selectVoicePersona" class="modal-select">
+            <option value="default" selected>🎙️ الصوت التلقائي الذكي (Auto Natural)</option>
+            <option value="friendly">😊 ودود ومتحمس (Friendly & Energetic)</option>
+            <option value="calm">🧘 هادئ وعميق (Calm & Soothing)</option>
+            <option value="professional">💼 رسمي وخبير (Professional & Authoritative)</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
           <label class="setting-title">المؤثرات الصوتية التفاعلية (Sound Effects):</label>
           <label class="toggle-control">
             <input type="checkbox" id="chkSoundEffects" checked>
@@ -527,9 +579,174 @@
     </div>
   </div>
 
+  <!-- 5b. Professional Built-in Canvas Image Studio & Editor Modal -->
+  <div class="modal-overlay" id="imageEditorModal" style="display: none;">
+    <div class="modal-card extra-wide-card image-editor-card">
+      <div class="modal-header">
+        <div class="image-editor-title-box">
+          <span class="editor-icon">🎨</span>
+          <div>
+            <h3 style="margin:0; font-size:16px;">استوديو تعديل ومعالجة الصور المباشر (MK Studio)</h3>
+            <small style="color:var(--text-muted); font-size:11px;">تعديل، فلاتر، رسم، قص، وتصدير فوري بدون أي سيرفرات أو علامات مائية</small>
+          </div>
+        </div>
+        <button class="btn-close-modal" id="btnCloseImageEditor">✕</button>
+      </div>
+      <div class="modal-body image-editor-body">
+        <div class="editor-workspace">
+          <!-- Canvas Container -->
+          <div class="editor-canvas-container" id="editorCanvasContainer">
+            <canvas id="studioCanvas"></canvas>
+          </div>
+          <!-- Editor Sidebar Controls -->
+          <div class="editor-toolbar-panel">
+            <div class="toolbar-section">
+              <label class="toolbar-label">الفلاتر الفورية (Instant Filters)</label>
+              <div class="filter-buttons-grid">
+                <button type="button" class="btn-filter" data-filter="normal">أصلي</button>
+                <button type="button" class="btn-filter" data-filter="grayscale">أبيض وأسود</button>
+                <button type="button" class="btn-filter" data-filter="sepia">عتيق (Sepia)</button>
+                <button type="button" class="btn-filter" data-filter="invert">عكس الألوان</button>
+                <button type="button" class="btn-filter" data-filter="warm">دافئ</button>
+                <button type="button" class="btn-filter" data-filter="cool">بارد</button>
+              </div>
+            </div>
+
+            <div class="toolbar-section">
+              <label class="toolbar-label">التحكم اليدوي (Adjustments)</label>
+              <div class="slider-group">
+                <div class="slider-item">
+                  <div class="slider-label-row"><span>السطوع</span><span id="valBrightness">100%</span></div>
+                  <input type="range" id="rangeBrightness" min="0" max="200" value="100">
+                </div>
+                <div class="slider-item">
+                  <div class="slider-label-row"><span>التباين</span><span id="valContrast">100%</span></div>
+                  <input type="range" id="rangeContrast" min="0" max="200" value="100">
+                </div>
+                <div class="slider-item">
+                  <div class="slider-label-row"><span>تشبع الألوان</span><span id="valSaturation">100%</span></div>
+                  <input type="range" id="rangeSaturation" min="0" max="200" value="100">
+                </div>
+                <div class="slider-item">
+                  <div class="slider-label-row"><span>الضبابية (Blur)</span><span id="valBlur">0px</span></div>
+                  <input type="range" id="rangeBlur" min="0" max="15" value="0">
+                </div>
+              </div>
+            </div>
+
+            <div class="toolbar-section">
+              <label class="toolbar-label">الأدوات الهندسية</label>
+              <div class="tool-actions-row">
+                <button type="button" class="btn-tool-action" id="btnRotateLeft" title="تدوير 90 درجة يساراً">↺ تدوير يسار</button>
+                <button type="button" class="btn-tool-action" id="btnRotateRight" title="تدوير 90 درجة يميناً">↻ تدوير يمين</button>
+                <button type="button" class="btn-tool-action" id="btnFlipH" title="عكس أفقي">⇄ عكس أفقي</button>
+              </div>
+            </div>
+
+            <div class="toolbar-section">
+              <label class="toolbar-label">أداة تفريغ الخلفية السحرية (AI Magic Eraser)</label>
+              <div class="tool-actions-row">
+                <button type="button" class="btn-tool-action" id="btnMagicRemoveBg" style="background:linear-gradient(135deg, #10a37f, #059669); color:#fff; font-weight:bold;">🪄 تفريغ الخلفية فوراً</button>
+              </div>
+            </div>
+
+            <div class="toolbar-section">
+              <label class="toolbar-label">إضافة نصوص وميمز (Meme & Text)</label>
+              <div style="display:flex; flex-direction:column; gap:6px;">
+                <input type="text" id="inputStudioText" class="modal-input" placeholder="اكتب نصاً لإضافته للصورة..." style="font-size:12px; padding:6px 10px;">
+                <div style="display:flex; gap:6px;">
+                  <button type="button" class="btn-tool-action" id="btnAddTextTop">نص علوي (Meme Top)</button>
+                  <button type="button" class="btn-tool-action" id="btnAddTextBottom">نص سفلي (Meme Bottom)</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="toolbar-section">
+              <label class="toolbar-label">أداة الرسم الحر (Free Drawing)</label>
+              <div class="draw-tools-row">
+                <label class="toggle-control" style="font-size:12px;">
+                  <input type="checkbox" id="chkEnableDrawing">
+                  <span class="toggle-slider"></span>
+                  <span class="toggle-text">تفعيل قلم الرسم</span>
+                </label>
+                <input type="color" id="pickerDrawColor" value="#10a37f" title="لون القلم" style="width:36px; height:32px; border-radius:6px; border:none; cursor:pointer;">
+                <input type="range" id="rangeBrushSize" min="1" max="30" value="4" title="سُمك القلم" style="width:70px;">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer image-editor-footer">
+        <button type="button" class="btn-modal-action secondary" id="btnResetImageEditor">🔄 إعادة ضبط</button>
+        <div style="display:flex; gap:8px;">
+          <button type="button" class="btn-modal-action primary" id="btnDownloadEditedImage">📥 تنزيل الصورة المعدلة</button>
+          <button type="button" class="btn-modal-action primary" id="btnApplyEditorToChat" style="background:#10a37f;">💬 إرسال للشات</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Memory Manager Modal -->
+  <div class="modal-overlay" id="memoryManagerModal" style="display: none;">
+    <div class="modal-card wide-card">
+      <div class="modal-header">
+        <h3>🧠 ذاكرة MK AI الدائمة (Long-Term Memory)</h3>
+        <button class="btn-close-modal" id="btnCloseMemoryModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          MK AI يتذكر تفضيلاتك، اسمك، لغتك، وأسلوبك تلقائياً عبر المحادثات. يمكنك إدارة ذاكرته أدناه.
+        </p>
+        <div class="memory-add-row">
+          <input type="text" id="inputMemoryKey" class="modal-input" placeholder="ماذا يتذكر؟ (مثال: لغة البرمجة المفضلة)" style="flex:1;">
+          <input type="text" id="inputMemoryValue" class="modal-input" placeholder="القيمة (مثال: Python)" style="flex:1; margin-right:8px;">
+          <button class="btn-modal-action primary" id="btnAddMemory">+ إضافة</button>
+        </div>
+        <div id="memoryListContainer" class="memory-list-container">
+          <!-- Rendered dynamically -->
+        </div>
+        <div style="margin-top: 16px; display:flex; justify-content: flex-end;">
+          <button class="btn-danger" id="btnClearAllMemories">🗑️ مسح كل الذاكرة</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. Python Terminal Modal -->
+  <div class="modal-overlay" id="pythonTerminalModal" style="display: none;">
+    <div class="modal-card wide-card py-terminal-card">
+      <div class="modal-header">
+        <h3>🐍 مفسر Python التفاعلي (Pyodide WASM)</h3>
+        <button class="btn-close-modal" id="btnClosePythonTerminal">✕</button>
+      </div>
+      <div class="modal-body py-split-view">
+        <div class="py-editor-pane">
+          <div class="py-pane-label">📝 كود Python</div>
+          <textarea id="pythonCodeInput" class="py-code-editor" spellcheck="false" placeholder="# اكتب كود Python هنا&#10;print('مرحباً من MK AI Python Engine!')&#10;&#10;# دعم كامل لـ NumPy, Pandas, Matplotlib&#10;# import numpy as np&#10;# import pandas as pd&#10;# import matplotlib.pyplot as plt"></textarea>
+          <div class="py-editor-actions">
+            <button class="btn-modal-action primary" id="btnRunPython">▶️ تشغيل الكود</button>
+            <button class="btn-modal-action secondary" id="btnClearPythonOutput">🗑️ مسح المخرجات</button>
+            <button class="btn-modal-action secondary" id="btnCopyPythonToChat">📤 إرسال للمحادثة</button>
+          </div>
+        </div>
+        <div class="py-output-pane">
+          <div class="py-pane-label">📤 المخرجات والرسوم البيانية</div>
+          <div id="pythonStatusBar" class="py-status-bar">جاهز للتشغيل. اضغط ▶️ لتنفيذ كودك.</div>
+          <div id="pythonConsoleOutput" class="py-console-output"></div>
+          <div id="pythonPlotOutput" class="py-plot-output" style="display:none;">
+            <img id="pythonPlotImg" src="" alt="Matplotlib Plot" style="max-width:100%; border-radius:8px;">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Scripts -->
   <script src="db.js"></script>
+  <script src="image-engine.js"></script>
   <script src="rag-engine.js"></script>
+  <script src="py-engine.js"></script>
+  <script src="ocr-engine.js"></script>
   <script src="ai-engine.js"></script>
   <script src="app.js"></script>
 </body>

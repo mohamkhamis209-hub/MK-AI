@@ -87,6 +87,14 @@ class MKDatabase {
           created_at TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS user_memories (
+          id TEXT PRIMARY KEY,
+          memory_key TEXT,
+          memory_value TEXT,
+          category TEXT,
+          created_at TEXT
+        );
+
         CREATE TABLE IF NOT EXISTS settings (
           key TEXT PRIMARY KEY,
           value TEXT
@@ -111,6 +119,38 @@ class MKDatabase {
         avatar: '💻',
         system_prompt: 'أنت مهندس برمجيات أول (Senior Software Engineer). كودك فائق النظافة، يتبع أفضل الممارسات البرمجية، متقن للأمان والأداء، ويحتوي على تعليقات شارحة.',
         category: 'البرمجة والتطوير'
+      },
+      {
+        id: 'gpt-bughunter',
+        name: 'MK صياد الأخطاء (Bug Hunter)',
+        description: 'فحص وتدقيق الأكواد، كشف الثغرات الأمنية، وتحسين الأداء وزمن الاستجابة بنسبة 100%.',
+        avatar: '🐞',
+        system_prompt: 'أنت خبير تدقيق أمني ومراجعة أكواد (Code Auditor & Security Specialist). حلل الكود البرمجي المقدم، اكتشف الثغرات ونقاط الضعف، وقدم الكود المصحح فوراً مع شرح سبب المشكلة.',
+        category: 'البرمجة والتطوير'
+      },
+      {
+        id: 'gpt-analyst',
+        name: 'MK محلل البيانات والبيزنس',
+        description: 'تحليل الأرقام والمؤشرات المالية وتوليد رسوم بيانية تفاعلية واستراتيجيات نمو للمشاريع.',
+        avatar: '📈',
+        system_prompt: 'أنت محلل بيانات أول ومستشار استراتيجي للأعمال (Senior Data & Business Analyst). قدم تحليلاتك دائماً مدعومة بجداول Markdown واضحة لتتحول تلقائياً إلى رسوم بيانية تفاعلية.',
+        category: 'الأعمال والبيزنس'
+      },
+      {
+        id: 'gpt-copywriter',
+        name: 'MK خبير التسويق والمحتوى الفيروسي',
+        description: 'صياغة إعلانات جذابة، خطط تسويق رقمي، ونصوص إعلانية محفزة للشراء والمشاركة.',
+        avatar: '🚀',
+        system_prompt: 'أنت مسوق رقمي محترف وخبير Copywriting. تكتب نصوصاً مقنعة جداً تحفز المشاعر وتضاعف المبيعات والتفاعل على منصات التواصل.',
+        category: 'التسويق والمحتوى'
+      },
+      {
+        id: 'gpt-teacher',
+        name: 'MK المعلم الخاص والمدرب الأكاديمي',
+        description: 'تبسيط أصعب المفاهيم العلمية والرياضية واللغوية بأسلوب شيق وتمارين عملية فورية.',
+        avatar: '🎓',
+        system_prompt: 'أنت معلم صبور وخبير في علم أصول التدريس والتبسيط (Pedagogy). بسط المفاهيم المعقدة بالتشبيهات الواقعية، واسأل المتعلم أسئلة تثبيت للمعلومة خطوة بخطوة.',
+        category: 'التعليم والعلوم'
       },
       {
         id: 'gpt-legal',
@@ -281,6 +321,69 @@ class MKDatabase {
       return;
     }
     this.fallbackStore.custom_gpts = (this.fallbackStore.custom_gpts || []).filter(g => g.id !== id);
+    await this.persist();
+  }
+
+  // --- Long-Term User Memories Operations ---
+  async getMemories() {
+    await this.initPromise;
+    if (this.isWasmLoaded && this.db) {
+      try {
+        const res = this.db.exec("SELECT * FROM user_memories ORDER BY created_at DESC");
+        if (res.length > 0) {
+          const cols = res[0].columns;
+          return res[0].values.map(val => {
+            const obj = {};
+            cols.forEach((col, idx) => obj[col] = val[idx]);
+            return obj;
+          });
+        }
+        return [];
+      } catch (e) {
+        return [];
+      }
+    }
+    return this.fallbackStore.user_memories || [];
+  }
+
+  async addMemory(key, value, category = 'عام') {
+    await this.initPromise;
+    const id = 'mem-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+    const now = new Date().toISOString();
+    if (this.isWasmLoaded && this.db) {
+      this.db.run(
+        "INSERT INTO user_memories (id, memory_key, memory_value, category, created_at) VALUES (?, ?, ?, ?, ?)",
+        [id, key, value, category, now]
+      );
+      await this.persist();
+      return { id, memory_key: key, memory_value: value, category, created_at: now };
+    }
+    if (!this.fallbackStore.user_memories) this.fallbackStore.user_memories = [];
+    const mem = { id, memory_key: key, memory_value: value, category, created_at: now };
+    this.fallbackStore.user_memories.push(mem);
+    await this.persist();
+    return mem;
+  }
+
+  async deleteMemory(id) {
+    await this.initPromise;
+    if (this.isWasmLoaded && this.db) {
+      this.db.run("DELETE FROM user_memories WHERE id = ?", [id]);
+      await this.persist();
+      return;
+    }
+    this.fallbackStore.user_memories = (this.fallbackStore.user_memories || []).filter(m => m.id !== id);
+    await this.persist();
+  }
+
+  async clearAllMemories() {
+    await this.initPromise;
+    if (this.isWasmLoaded && this.db) {
+      this.db.run("DELETE FROM user_memories");
+      await this.persist();
+      return;
+    }
+    this.fallbackStore.user_memories = [];
     await this.persist();
   }
 
@@ -560,6 +663,7 @@ class MKDatabase {
     await this.initPromise;
     const conversations = await this.getConversations();
     const gpts = await this.getCustomGPTs();
+    const memories = await this.getMemories();
     let allMessages = [];
     let allAttachments = [];
 
@@ -573,13 +677,14 @@ class MKDatabase {
     }
 
     const backupData = {
-      version: '3.0',
+      version: '4.0',
       app: 'MK AI',
       exported_at: new Date().toISOString(),
       conversations,
       messages: allMessages,
       attachments: allAttachments,
-      custom_gpts: gpts
+      custom_gpts: gpts,
+      user_memories: memories
     };
 
     return JSON.stringify(backupData, null, 2);
@@ -596,6 +701,12 @@ class MKDatabase {
     if (data.custom_gpts && Array.isArray(data.custom_gpts)) {
       for (const gpt of data.custom_gpts) {
         await this.createCustomGPT(gpt);
+      }
+    }
+
+    if (data.user_memories && Array.isArray(data.user_memories)) {
+      for (const mem of data.user_memories) {
+        await this.addMemory(mem.memory_key, mem.memory_value, mem.category || 'عام');
       }
     }
 
@@ -624,11 +735,12 @@ class MKDatabase {
     if (raw) {
       try {
         this.fallbackStore = JSON.parse(raw);
+        if (!this.fallbackStore.user_memories) this.fallbackStore.user_memories = [];
       } catch (e) {
-        this.fallbackStore = { conversations: [], messages: [], attachments: [], custom_gpts: [], settings: {} };
+        this.fallbackStore = { conversations: [], messages: [], attachments: [], custom_gpts: [], settings: {}, user_memories: [] };
       }
     } else {
-      this.fallbackStore = { conversations: [], messages: [], attachments: [], custom_gpts: [], settings: {} };
+      this.fallbackStore = { conversations: [], messages: [], attachments: [], custom_gpts: [], settings: {}, user_memories: [] };
     }
   }
 
